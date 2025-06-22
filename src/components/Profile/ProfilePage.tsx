@@ -1,15 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { User, Mail, Camera, Save, ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, Lock } from 'lucide-react';
+import { User, Mail, Camera, Save, ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, Lock, CreditCard } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../hooks/useAuth';
+import BillingTab from './BillingTab';
 
 const ProfilePage: React.FC = () => {
   const { user, setCurrentView } = useAppStore();
   const { updateProfile, updatePassword, loading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'plan'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'billing'>('profile');
   const [profileData, setProfileData] = useState({
     full_name: user?.name || '',
     email: user?.email || '',
@@ -194,7 +195,7 @@ const ProfilePage: React.FC = () => {
   const tabs = [
     { id: 'profile', name: 'Profile', icon: <User className="h-4 w-4" /> },
     { id: 'security', name: 'Security', icon: <Lock className="h-4 w-4" /> },
-    { id: 'plan', name: 'Plan & Billing', icon: <div className="w-4 h-4 bg-purple-600 rounded text-white text-xs flex items-center justify-center font-bold">{user.plan.charAt(0).toUpperCase()}</div> }
+    { id: 'billing', name: 'Billing', icon: <CreditCard className="h-4 w-4" /> }
   ];
 
   return (
@@ -217,7 +218,7 @@ const ProfilePage: React.FC = () => {
             </button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-              <p className="text-gray-600 mt-1">Manage your profile and account preferences</p>
+              <p className="text-gray-600 mt-1">Manage your profile, security, and billing preferences</p>
             </div>
           </div>
 
@@ -517,153 +518,10 @@ const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* Plan Tab */}
-          {activeTab === 'plan' && (
+          {/* Billing Tab */}
+          {activeTab === 'billing' && (
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">Plan & Billing</h3>
-              
-              <div className="space-y-6">
-                {/* Current Plan */}
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-900 capitalize">
-                        {user.plan} Plan
-                      </h4>
-                      <p className="text-gray-600">
-                        {user.plan === 'free' && 'Perfect for getting started'}
-                        {user.plan === 'pro' && 'For creators and small businesses'}
-                        {user.plan === 'business' && 'For growing businesses'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-gray-900">
-                        {user.plan === 'free' && '$0'}
-                        {user.plan === 'pro' && '$12'}
-                        {user.plan === 'business' && '$39'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {user.plan === 'free' ? 'forever' : 'per month'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Plan Features */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">Current Plan Features</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {user.plan === 'free' && (
-                      <>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          1 website
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Basic templates
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Subdomain hosting
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Community support
-                        </div>
-                      </>
-                    )}
-                    {user.plan === 'pro' && (
-                      <>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Unlimited websites
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Premium templates
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Custom domains
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Priority support
-                        </div>
-                      </>
-                    )}
-                    {user.plan === 'business' && (
-                      <>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Everything in Pro
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          White-label solution
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          Advanced integrations
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                          24/7 phone support
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Upgrade Options */}
-                {user.plan !== 'business' && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">Upgrade Your Plan</h4>
-                    <div className="space-y-3">
-                      {user.plan === 'free' && (
-                        <>
-                          <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h5 className="font-medium text-gray-900">Upgrade to Pro</h5>
-                                <p className="text-sm text-gray-600">Unlimited websites and premium features</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-gray-900">$12/month</p>
-                              </div>
-                            </div>
-                          </button>
-                          <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h5 className="font-medium text-gray-900">Upgrade to Business</h5>
-                                <p className="text-sm text-gray-600">Advanced features for growing businesses</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-gray-900">$39/month</p>
-                              </div>
-                            </div>
-                          </button>
-                        </>
-                      )}
-                      {user.plan === 'pro' && (
-                        <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h5 className="font-medium text-gray-900">Upgrade to Business</h5>
-                              <p className="text-sm text-gray-600">Advanced features for growing businesses</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-semibold text-gray-900">$39/month</p>
-                            </div>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <BillingTab />
             </div>
           )}
         </motion.div>

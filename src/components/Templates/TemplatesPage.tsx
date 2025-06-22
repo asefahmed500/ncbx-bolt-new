@@ -1,8 +1,10 @@
 import React from 'react';
-import { Search, Filter, Star, Eye, ArrowRight, Zap, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { Search, Filter, Star, Eye, ArrowRight, Zap, Plus, CheckCircle, AlertCircle, Crown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
+import { useStripe, PremiumTemplate } from '../../hooks/useStripe';
+import PremiumTemplateCard from './PremiumTemplateCard';
 
 interface Template {
   id: string;
@@ -20,16 +22,20 @@ interface Template {
 const TemplatesPage: React.FC = () => {
   const { user, setCurrentWebsite, setCurrentView } = useAppStore();
   const { createWebsite } = useWebsites();
+  const { getPremiumTemplates } = useStripe();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('popular');
+  const [showPremiumOnly, setShowPremiumOnly] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = React.useState<Template | null>(null);
+  const [showCreateModal, setShowCreateModal] = React.useState<Template | PremiumTemplate | null>(null);
   const [websiteData, setWebsiteData] = React.useState({
     name: '',
     description: ''
   });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [premiumTemplates, setPremiumTemplates] = React.useState<PremiumTemplate[]>([]);
+  const [loadingPremium, setLoadingPremium] = React.useState(true);
 
   // Redirect to auth if not logged in
   React.useEffect(() => {
@@ -37,6 +43,23 @@ const TemplatesPage: React.FC = () => {
       setCurrentView('auth');
     }
   }, [user, setCurrentView]);
+
+  // Load premium templates
+  React.useEffect(() => {
+    loadPremiumTemplates();
+  }, [user]);
+
+  const loadPremiumTemplates = async () => {
+    try {
+      setLoadingPremium(true);
+      const templates = await getPremiumTemplates();
+      setPremiumTemplates(templates);
+    } catch (error) {
+      console.error('Error loading premium templates:', error);
+    } finally {
+      setLoadingPremium(false);
+    }
+  };
 
   const categories = [
     { id: 'all', name: 'All Templates', count: 24 },
@@ -48,7 +71,7 @@ const TemplatesPage: React.FC = () => {
     { id: 'creative', name: 'Creative', count: 1 }
   ];
 
-  const templates: Template[] = [
+  const freeTemplates: Template[] = [
     {
       id: '1',
       name: 'Modern Business',
@@ -60,30 +83,6 @@ const TemplatesPage: React.FC = () => {
       isPremium: false,
       tags: ['responsive', 'modern', 'clean'],
       features: ['Contact forms', 'Service sections', 'Team showcase', 'Testimonials']
-    },
-    {
-      id: '2',
-      name: 'Creative Portfolio',
-      category: 'portfolio',
-      description: 'Showcase your work with this stunning portfolio template designed for creatives',
-      preview: 'https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=500',
-      rating: 4.8,
-      downloads: 987,
-      isPremium: true,
-      tags: ['creative', 'portfolio', 'animated'],
-      features: ['Project galleries', 'About section', 'Skills showcase', 'Contact form']
-    },
-    {
-      id: '3',
-      name: 'E-commerce Pro',
-      category: 'ecommerce',
-      description: 'Complete online store solution with shopping cart and payment integration',
-      preview: 'https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=500',
-      rating: 4.7,
-      downloads: 2156,
-      isPremium: true,
-      tags: ['ecommerce', 'shop', 'product'],
-      features: ['Product catalog', 'Shopping cart', 'Checkout process', 'User accounts']
     },
     {
       id: '4',
@@ -98,18 +97,6 @@ const TemplatesPage: React.FC = () => {
       features: ['Menu display', 'Reservation system', 'Gallery', 'Location map']
     },
     {
-      id: '5',
-      name: 'Startup Landing',
-      category: 'business',
-      description: 'High-converting landing page template designed for startups and SaaS',
-      preview: 'https://images.pexels.com/photos/3183153/pexels-photo-3183153.jpeg?auto=compress&cs=tinysrgb&w=500',
-      rating: 4.9,
-      downloads: 1876,
-      isPremium: true,
-      tags: ['startup', 'landing', 'conversion'],
-      features: ['Hero section', 'Feature highlights', 'Pricing tables', 'CTA buttons']
-    },
-    {
       id: '6',
       name: 'Minimalist Blog',
       category: 'blog',
@@ -120,18 +107,6 @@ const TemplatesPage: React.FC = () => {
       isPremium: false,
       tags: ['blog', 'minimal', 'typography'],
       features: ['Article layouts', 'Category pages', 'Author profiles', 'Comments']
-    },
-    {
-      id: '7',
-      name: 'Creative Agency',
-      category: 'creative',
-      description: 'Bold and dynamic template for creative agencies and design studios',
-      preview: 'https://images.pexels.com/photos/196667/pexels-photo-196667.jpeg?auto=compress&cs=tinysrgb&w=500',
-      rating: 4.8,
-      downloads: 789,
-      isPremium: true,
-      tags: ['agency', 'creative', 'bold'],
-      features: ['Portfolio showcase', 'Team section', 'Services', 'Case studies']
     },
     {
       id: '8',
@@ -147,12 +122,30 @@ const TemplatesPage: React.FC = () => {
     }
   ];
 
-  const filteredTemplates = templates.filter(template => {
+  // Combine free and premium templates
+  const allTemplates = [
+    ...freeTemplates,
+    ...premiumTemplates.map(pt => ({
+      id: pt.id,
+      name: pt.name,
+      category: pt.category,
+      description: pt.description,
+      preview: pt.thumbnail_url,
+      rating: 4.8, // Default rating for premium templates
+      downloads: 0, // Premium templates don't show downloads
+      isPremium: true,
+      tags: pt.tags,
+      features: pt.features
+    }))
+  ];
+
+  const filteredTemplates = allTemplates.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          template.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesPremiumFilter = !showPremiumOnly || template.isPremium;
+    return matchesSearch && matchesCategory && matchesPremiumFilter;
   });
 
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
@@ -170,16 +163,20 @@ const TemplatesPage: React.FC = () => {
     }
   });
 
-  const handleUseTemplate = (template: Template) => {
+  const handleUseTemplate = (template: Template | PremiumTemplate) => {
     if (!user) {
       setCurrentView('auth');
       return;
     }
 
-    // Check plan restrictions
-    if (template.isPremium && user.plan === 'free') {
-      setErrors({ plan: 'This is a premium template. Upgrade your plan to use it.' });
-      return;
+    // Check if it's a premium template and user has access
+    if ('price' in template) {
+      // This is a premium template
+      const premiumTemplate = template as PremiumTemplate;
+      if (!premiumTemplate.has_access && user.plan === 'free') {
+        setErrors({ plan: 'This is a premium template. Upgrade your plan or purchase individually to use it.' });
+        return;
+      }
     }
 
     setShowCreateModal(template);
@@ -222,7 +219,7 @@ const TemplatesPage: React.FC = () => {
         name: websiteData.name.trim(),
         description: websiteData.description.trim() || undefined,
         template: showCreateModal.name,
-        thumbnail: showCreateModal.preview
+        thumbnail: 'preview' in showCreateModal ? showCreateModal.preview : showCreateModal.thumbnail_url
       });
       
       // Convert to app store format and navigate to editor
@@ -254,7 +251,7 @@ const TemplatesPage: React.FC = () => {
       return;
     }
 
-    // Check plan restrictions
+    // Check plan restrictions for premium templates
     if (template.isPremium && user.plan === 'free') {
       setErrors({ plan: 'This is a premium template. Upgrade your plan to use it.' });
       return;
@@ -406,35 +403,58 @@ const TemplatesPage: React.FC = () => {
                 <option value="newest">Newest</option>
                 <option value="name">Name A-Z</option>
               </select>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={showPremiumOnly}
+                  onChange={(e) => setShowPremiumOnly(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 flex items-center">
+                  <Crown className="h-4 w-4 text-yellow-500 mr-1" />
+                  Premium Only
+                </span>
+              </label>
             </div>
           </div>
         </motion.div>
 
-        {/* Featured Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 mb-8 text-white"
-        >
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div className="mb-4 md:mb-0">
-              <div className="flex items-center mb-2">
-                <Zap className="h-6 w-6 mr-2" />
-                <span className="bg-white bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium">
-                  New
-                </span>
+        {/* Premium Templates Section */}
+        {!showPremiumOnly && premiumTemplates.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="mb-12"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <Crown className="h-6 w-6 text-yellow-500 mr-2" />
+                  Premium Templates
+                </h2>
+                <p className="text-gray-600">Professional templates with advanced features</p>
               </div>
-              <h3 className="text-2xl font-bold mb-2">AI-Powered Templates</h3>
-              <p className="text-blue-100">
-                Get personalized template recommendations based on your business type and style preferences.
-              </p>
+              <button
+                onClick={() => setShowPremiumOnly(true)}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                View All Premium →
+              </button>
             </div>
-            <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
-              Try AI Assistant
-            </button>
-          </div>
-        </motion.div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {premiumTemplates.slice(0, 4).map((template, index) => (
+                <PremiumTemplateCard
+                  key={template.id}
+                  template={template}
+                  onUse={handleUseTemplate}
+                  index={index}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Templates Grid */}
         <motion.div
@@ -442,6 +462,15 @@ const TemplatesPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
         >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {showPremiumOnly ? 'Premium Templates' : 'All Templates'}
+            </h2>
+            <span className="text-gray-600">
+              {sortedTemplates.length} template{sortedTemplates.length !== 1 ? 's' : ''} found
+            </span>
+          </div>
+
           {sortedTemplates.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-gray-400 mb-4">
@@ -452,99 +481,115 @@ const TemplatesPage: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {sortedTemplates.map((template, index) => (
-                <motion.div
-                  key={template.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.05 }}
-                  className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all overflow-hidden group"
-                >
-                  <div className="relative">
-                    <img
-                      src={template.preview}
-                      alt={template.name}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    {template.isPremium && (
+              {sortedTemplates.map((template, index) => {
+                // Render premium templates with special component
+                if (template.isPremium && 'price' in template) {
+                  const premiumTemplate = premiumTemplates.find(pt => pt.id === template.id);
+                  if (premiumTemplate) {
+                    return (
+                      <PremiumTemplateCard
+                        key={template.id}
+                        template={premiumTemplate}
+                        onUse={handleUseTemplate}
+                        index={index}
+                      />
+                    );
+                  }
+                }
+
+                // Render free templates
+                return (
+                  <motion.div
+                    key={template.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: index * 0.05 }}
+                    className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all overflow-hidden group border border-gray-100"
+                  >
+                    <div className="relative">
+                      <img
+                        src={template.preview}
+                        alt={template.name}
+                        className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
                       <div className="absolute top-3 left-3">
-                        <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                          Premium
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          Free
                         </span>
                       </div>
-                    )}
-                    <div className="absolute top-3 right-3 flex space-x-2">
-                      <button className="bg-white bg-opacity-90 hover:bg-opacity-100 p-2 rounded-full transition-colors">
-                        <Eye className="h-4 w-4 text-gray-600" />
+                      <div className="absolute top-3 right-3 flex space-x-2">
+                        <button className="bg-white bg-opacity-90 hover:bg-opacity-100 p-2 rounded-full transition-colors">
+                          <Eye className="h-4 w-4 text-gray-600" />
+                        </button>
+                      </div>
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleQuickCreate(template)}
+                            disabled={isCreating === template.id}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isCreating === template.id ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                            ) : (
+                              <Plus className="h-4 w-4 mr-2" />
+                            )}
+                            Quick Start
+                          </button>
+                          <button
+                            onClick={() => handleUseTemplate(template)}
+                            className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+                          >
+                            Customize
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                            {template.name}
+                          </h3>
+                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                            {template.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                          <div className="flex items-center">
+                            <Star className="h-4 w-4 text-yellow-400 fill-current mr-1" />
+                            {template.rating}
+                          </div>
+                          <div>{template.downloads.toLocaleString()} uses</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {template.tags.slice(0, 3).map(tag => (
+                          <span
+                            key={tag}
+                            className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => handleUseTemplate(template)}
+                        disabled={isCreating === template.id}
+                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      >
+                        {isCreating === template.id ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          'Use This Template'
+                        )}
                       </button>
                     </div>
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleQuickCreate(template)}
-                          disabled={isCreating === template.id}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isCreating === template.id ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                          ) : (
-                            <Plus className="h-4 w-4 mr-2" />
-                          )}
-                          Quick Start
-                        </button>
-                        <button
-                          onClick={() => handleUseTemplate(template)}
-                          className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
-                        >
-                          Customize
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                          {template.name}
-                        </h3>
-                        <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                          {template.description}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <div className="flex items-center">
-                          <Star className="h-4 w-4 text-yellow-400 fill-current mr-1" />
-                          {template.rating}
-                        </div>
-                        <div>{template.downloads.toLocaleString()} uses</div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {template.tags.slice(0, 3).map(tag => (
-                        <span
-                          key={tag}
-                          className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => handleUseTemplate(template)}
-                      disabled={isCreating === template.id}
-                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                    >
-                      {isCreating === template.id ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        'Use This Template'
-                      )}
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </motion.div>
@@ -587,7 +632,7 @@ const TemplatesPage: React.FC = () => {
               <div className="mb-6">
                 <div className="relative rounded-lg overflow-hidden">
                   <img
-                    src={showCreateModal.preview}
+                    src={'preview' in showCreateModal ? showCreateModal.preview : showCreateModal.thumbnail_url}
                     alt={showCreateModal.name}
                     className="w-full h-48 object-cover"
                   />
