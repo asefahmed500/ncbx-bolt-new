@@ -4,10 +4,14 @@ import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
 import WebsiteAnalytics from './WebsiteAnalytics';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import { useToast } from '../ui/use-toast';
 
 const Dashboard: React.FC = () => {
   const { user, setCurrentView, setCurrentWebsite } = useAppStore();
   const { websites, loading, error, deleteWebsite, duplicateWebsite, publishWebsite, unpublishWebsite, updateWebsite, getWebsiteCollaborators } = useWebsites();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBy, setFilterBy] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
@@ -198,9 +202,18 @@ const Dashboard: React.FC = () => {
         domain: editData.domain.trim() || undefined
       });
       setShowEditModal(null);
+      toast({
+        title: "Website updated",
+        description: "Your website has been updated successfully",
+      });
     } catch (error) {
       console.error('Failed to update website:', error);
       setEditErrors({ general: error instanceof Error ? error.message : 'Failed to update website' });
+      toast({
+        title: "Update failed",
+        description: error instanceof Error ? error.message : 'Failed to update website',
+        variant: "destructive",
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -211,8 +224,17 @@ const Dashboard: React.FC = () => {
       setActionLoading(prev => ({ ...prev, [`delete-${id}`]: true }));
       await deleteWebsite(id);
       setShowDeleteModal(null);
+      toast({
+        title: "Website deleted",
+        description: "Your website has been deleted successfully",
+      });
     } catch (err) {
       console.error('Failed to delete website:', err);
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : 'Failed to delete website',
+        variant: "destructive",
+      });
     } finally {
       setActionLoading(prev => ({ ...prev, [`delete-${id}`]: false }));
     }
@@ -222,8 +244,17 @@ const Dashboard: React.FC = () => {
     try {
       setActionLoading(prev => ({ ...prev, [`duplicate-${id}`]: true }));
       await duplicateWebsite(id);
+      toast({
+        title: "Website duplicated",
+        description: "Your website has been duplicated successfully",
+      });
     } catch (err) {
       console.error('Failed to duplicate website:', err);
+      toast({
+        title: "Duplication failed",
+        description: err instanceof Error ? err.message : 'Failed to duplicate website',
+        variant: "destructive",
+      });
     } finally {
       setActionLoading(prev => ({ ...prev, [`duplicate-${id}`]: false }));
     }
@@ -234,11 +265,24 @@ const Dashboard: React.FC = () => {
       setActionLoading(prev => ({ ...prev, [`status-${website.id}`]: true }));
       if (website.status === 'published') {
         await unpublishWebsite(website.id);
+        toast({
+          title: "Website unpublished",
+          description: "Your website is now in draft mode",
+        });
       } else {
         await publishWebsite(website.id);
+        toast({
+          title: "Website published",
+          description: "Your website is now live",
+        });
       }
     } catch (err) {
       console.error('Failed to toggle website status:', err);
+      toast({
+        title: "Status change failed",
+        description: err instanceof Error ? err.message : 'Failed to change website status',
+        variant: "destructive",
+      });
     } finally {
       setActionLoading(prev => ({ ...prev, [`status-${website.id}`]: false }));
     }
@@ -291,12 +335,13 @@ const Dashboard: React.FC = () => {
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load dashboard</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button
+          <Button
             onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            variant="default"
+            className="px-6 py-3"
           >
             Try Again
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -325,13 +370,14 @@ const Dashboard: React.FC = () => {
               </p>
             </div>
             <div className="mt-4 sm:mt-0">
-              <button
+              <Button
                 onClick={handleCreateWebsite}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center"
+                className="flex items-center"
+                size="lg"
               >
                 <Plus className="h-5 w-5 mr-2" />
                 Create Website
-              </button>
+              </Button>
             </div>
           </div>
         </motion.div>
@@ -344,18 +390,20 @@ const Dashboard: React.FC = () => {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
         >
           {stats.map((stat, index) => (
-            <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center text-white`}>
-                  {stat.icon}
+            <Card key={index} className="border-none shadow-md">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center text-white`}>
+                    {stat.icon}
+                  </div>
+                  <CardTitle className="text-2xl">{stat.value}</CardTitle>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-600">{stat.label}</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500">{stat.change}</p>
-            </div>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-sm font-medium">{stat.label}</CardDescription>
+                <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
+              </CardContent>
+            </Card>
           ))}
         </motion.div>
 
@@ -380,13 +428,14 @@ const Dashboard: React.FC = () => {
                   Choose from our collection of professional templates and start building your online presence today.
                 </p>
               </div>
-              <button
+              <Button
                 onClick={handleCreateWebsite}
-                className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors flex items-center"
+                variant="secondary"
+                className="text-blue-600 px-6 py-3"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Browse Templates
-              </button>
+              </Button>
             </div>
           </motion.div>
         )}
@@ -488,52 +537,56 @@ const Dashboard: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.3 }}
         >
           {filteredAndSortedWebsites.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 shadow-sm text-center">
+            <Card className="p-12 text-center">
               {websites.length === 0 ? (
                 // No websites at all
                 <>
                   <Globe className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  <CardTitle className="mb-2">
                     No websites yet
-                  </h3>
-                  <p className="text-gray-600 mb-6">
+                  </CardTitle>
+                  <CardDescription className="mb-6">
                     Create your first website to get started with NCBX
-                  </p>
-                  <button
+                  </CardDescription>
+                  <Button
                     onClick={handleCreateWebsite}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                    variant="default"
+                    size="lg"
                   >
                     Create Your First Website
-                  </button>
+                  </Button>
                 </>
               ) : (
                 // No websites match filters
                 <>
                   <Search className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  <CardTitle className="mb-2">
                     No websites found
-                  </h3>
-                  <p className="text-gray-600 mb-6">
+                  </CardTitle>
+                  <CardDescription className="mb-6">
                     Try adjusting your search terms or filters
-                  </p>
-                  <button
-                    onClick={() => {
-                      setSearchTerm('');
-                      setFilterBy('all');
-                    }}
-                    className="bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors mr-3"
-                  >
-                    Clear Filters
-                  </button>
-                  <button
-                    onClick={handleCreateWebsite}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                  >
-                    Create New Website
-                  </button>
+                  </CardDescription>
+                  <div className="flex justify-center gap-3">
+                    <Button
+                      onClick={() => {
+                        setSearchTerm('');
+                        setFilterBy('all');
+                      }}
+                      variant="outline"
+                      className="mr-3"
+                    >
+                      Clear Filters
+                    </Button>
+                    <Button
+                      onClick={handleCreateWebsite}
+                      variant="default"
+                    >
+                      Create New Website
+                    </Button>
+                  </div>
                 </>
               )}
-            </div>
+            </Card>
           ) : (
             <div className="space-y-6">
               {filteredAndSortedWebsites.map((website, index) => (
@@ -562,21 +615,22 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                           <div className="flex space-x-2">
-                            <button
+                            <Button
                               onClick={() => handleEditWebsite(website)}
-                              className="bg-white text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center"
+                              variant="secondary"
+                              className="flex items-center"
                             >
                               <Edit3 className="h-4 w-4 mr-2" />
                               Edit
-                            </button>
-                            <button 
+                            </Button>
+                            <Button 
                               onClick={() => handleViewWebsite(website)}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center"
                               disabled={website.status !== 'published'}
+                              className="flex items-center"
                             >
                               <ExternalLink className="h-4 w-4 mr-2" />
                               View
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -620,24 +674,27 @@ const Dashboard: React.FC = () => {
                         {/* Action Buttons */}
                         <div className="flex items-center justify-between">
                           <div className="flex space-x-1">
-                            <button
+                            <Button
                               onClick={() => handleEditWebsite(website)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              variant="ghost"
+                              size="icon"
                               title="Edit website"
                             >
                               <Edit3 className="h-4 w-4 text-gray-600" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               onClick={() => handleShowEditModal(website)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              variant="ghost"
+                              size="icon"
                               title="Edit properties"
                             >
                               <Settings className="h-4 w-4 text-gray-600" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               onClick={() => handleDuplicateWebsite(website.id)}
                               disabled={actionLoading[`duplicate-${website.id}`]}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                              variant="ghost"
+                              size="icon"
                               title="Duplicate website"
                             >
                               {actionLoading[`duplicate-${website.id}`] ? (
@@ -645,51 +702,50 @@ const Dashboard: React.FC = () => {
                               ) : (
                                 <Copy className="h-4 w-4 text-gray-600" />
                               )}
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               onClick={() => handleShowAnalytics(website.id)}
-                              className={`p-2 rounded-lg transition-colors ${
-                                showAnalytics === website.id 
-                                  ? 'bg-blue-100 text-blue-700' 
-                                  : 'hover:bg-gray-100 text-gray-600'
-                              }`}
+                              variant={showAnalytics === website.id ? "secondary" : "ghost"}
+                              size="icon"
                               title="View analytics"
                             >
                               <BarChart3 className="h-4 w-4" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               onClick={() => setShowDeleteModal(website.id)}
-                              className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                              variant="ghost"
+                              size="icon"
+                              className="hover:bg-red-100 hover:text-red-600"
                               title="Delete website"
                             >
                               <Trash2 className="h-4 w-4 text-red-600" />
-                            </button>
+                            </Button>
                           </div>
                           <div className="flex space-x-2">
                             {website.status === 'published' && (
-                              <button
+                              <Button
                                 onClick={() => handleViewWebsite(website)}
-                                className="px-3 py-1 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center"
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center"
                               >
                                 <Eye className="h-3 w-3 mr-1" />
                                 View
-                              </button>
+                              </Button>
                             )}
-                            <button
+                            <Button
                               onClick={() => handleToggleStatus(website)}
                               disabled={actionLoading[`status-${website.id}`]}
-                              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                                website.status === 'published'
-                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                  : 'bg-green-100 text-green-800 hover:bg-green-200'
-                              }`}
+                              variant={website.status === 'published' ? "outline" : "default"}
+                              size="sm"
+                              className={website.status === 'published' ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200" : ""}
                             >
                               {actionLoading[`status-${website.id}`] ? (
                                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                               ) : (
                                 website.status === 'published' ? 'Unpublish' : 'Publish'
                               )}
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -716,45 +772,44 @@ const Dashboard: React.FC = () => {
           >
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                onClick={handleCreateWebsite}
-                className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
-              >
-                <Plus className="h-8 w-8 text-blue-600 mb-2" />
-                <h4 className="font-semibold text-gray-900">New Website</h4>
-                <p className="text-sm text-gray-600">Start from template</p>
-              </button>
-              <button
-                onClick={() => setCurrentView('templates')}
-                className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
-              >
-                <Globe className="h-8 w-8 text-green-600 mb-2" />
-                <h4 className="font-semibold text-gray-900">Browse Templates</h4>
-                <p className="text-sm text-gray-600">Explore gallery</p>
-              </button>
-              <button 
-                onClick={() => setCurrentView('profile')}
-                className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
-              >
-                <div className="h-8 w-8 bg-purple-600 rounded mb-2 flex items-center justify-center text-white text-sm font-bold">
-                  {user?.plan.charAt(0).toUpperCase()}
-                </div>
-                <h4 className="font-semibold text-gray-900">Manage Plan</h4>
-                <p className="text-sm text-gray-600">Current: {user?.plan}</p>
-              </button>
-              <button 
+              <Card className="bg-white hover:shadow-md transition-shadow cursor-pointer" onClick={handleCreateWebsite}>
+                <CardContent className="p-6">
+                  <Plus className="h-8 w-8 text-blue-600 mb-2" />
+                  <CardTitle className="text-base">New Website</CardTitle>
+                  <CardDescription>Start from template</CardDescription>
+                </CardContent>
+              </Card>
+              <Card className="bg-white hover:shadow-md transition-shadow cursor-pointer" onClick={() => setCurrentView('templates')}>
+                <CardContent className="p-6">
+                  <Globe className="h-8 w-8 text-green-600 mb-2" />
+                  <CardTitle className="text-base">Browse Templates</CardTitle>
+                  <CardDescription>Explore gallery</CardDescription>
+                </CardContent>
+              </Card>
+              <Card className="bg-white hover:shadow-md transition-shadow cursor-pointer" onClick={() => setCurrentView('profile')}>
+                <CardContent className="p-6">
+                  <div className="h-8 w-8 bg-purple-600 rounded mb-2 flex items-center justify-center text-white text-sm font-bold">
+                    {user?.plan.charAt(0).toUpperCase()}
+                  </div>
+                  <CardTitle className="text-base">Manage Plan</CardTitle>
+                  <CardDescription>Current: {user?.plan}</CardDescription>
+                </CardContent>
+              </Card>
+              <Card 
+                className="bg-white hover:shadow-md transition-shadow cursor-pointer" 
                 onClick={() => {
                   // Show analytics for the first website if available
                   if (websites.length > 0) {
                     handleShowAnalytics(websites[0].id);
                   }
                 }}
-                className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
               >
-                <BarChart3 className="h-8 w-8 text-orange-600 mb-2" />
-                <h4 className="font-semibold text-gray-900">Analytics</h4>
-                <p className="text-sm text-gray-600">View insights</p>
-              </button>
+                <CardContent className="p-6">
+                  <BarChart3 className="h-8 w-8 text-orange-600 mb-2" />
+                  <CardTitle className="text-base">Analytics</CardTitle>
+                  <CardDescription>View insights</CardDescription>
+                </CardContent>
+              </Card>
             </div>
           </motion.div>
         )}
@@ -763,31 +818,34 @@ const Dashboard: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Website</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this website? This action cannot be undone and all data will be permanently lost.
-            </p>
-            <div className="flex space-x-3">
-              <button
+          <Card className="max-w-md w-full mx-4">
+            <CardHeader>
+              <CardTitle>Delete Website</CardTitle>
+              <CardDescription>
+                Are you sure you want to delete this website? This action cannot be undone and all data will be permanently lost.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className="flex justify-end space-x-3">
+              <Button
                 onClick={() => setShowDeleteModal(null)}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                variant="outline"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => handleDeleteWebsite(showDeleteModal)}
                 disabled={actionLoading[`delete-${showDeleteModal}`]}
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                variant="destructive"
+                className="flex items-center justify-center"
               >
                 {actionLoading[`delete-${showDeleteModal}`] ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   'Delete'
                 )}
-              </button>
-            </div>
-          </div>
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
 
@@ -876,16 +934,17 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="flex space-x-3 mt-6">
-                <button
+                <Button
                   onClick={() => setShowEditModal(null)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  variant="outline"
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleUpdateWebsite}
                   disabled={isUpdating}
-                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  className="flex-1 flex items-center justify-center"
                 >
                   {isUpdating ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -893,7 +952,7 @@ const Dashboard: React.FC = () => {
                     <Upload className="h-4 w-4 mr-2" />
                   )}
                   Update Website
-                </button>
+                </Button>
               </div>
             </div>
           </motion.div>

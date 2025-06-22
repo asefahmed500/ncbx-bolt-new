@@ -3,6 +3,8 @@ import { Menu, X, Zap, User, Settings, LogOut, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../hooks/useAuth';
+import { Button } from '../ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 interface HeaderProps {
   isMenuOpen: boolean;
@@ -45,51 +47,42 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
           <nav className="hidden md:flex items-center space-x-8">
             {isAuthenticated ? (
               <>
-                <button
+                <Button
                   onClick={() => handleNavigation('dashboard')}
-                  className={`text-sm font-medium transition-colors ${
-                    currentView === 'dashboard' 
-                      ? 'text-blue-600' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
+                  variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                  className="text-sm font-medium"
                 >
                   Dashboard
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => handleNavigation('templates')}
-                  className={`text-sm font-medium transition-colors ${
-                    currentView === 'templates' 
-                      ? 'text-blue-600' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
+                  variant={currentView === 'templates' ? 'default' : 'ghost'}
+                  className="text-sm font-medium"
                 >
                   Templates
-                </button>
+                </Button>
                 {user?.role === 'admin' && (
-                  <button
+                  <Button
                     onClick={() => handleNavigation('admin')}
-                    className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
-                      currentView === 'admin' 
-                        ? 'text-purple-600' 
-                        : 'text-gray-700 hover:text-purple-600'
-                    }`}
+                    variant={currentView === 'admin' ? 'default' : 'ghost'}
+                    className="flex items-center space-x-1 text-sm font-medium"
                   >
-                    <Shield className="h-4 w-4" />
+                    <Shield className="h-4 w-4 mr-1" />
                     <span>Admin Panel</span>
-                  </button>
+                  </Button>
                 )}
               </>
             ) : (
               <>
-                <button className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                <Button variant="ghost" className="text-sm font-medium">
                   Features
-                </button>
-                <button className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                </Button>
+                <Button variant="ghost" className="text-sm font-medium">
                   Pricing
-                </button>
-                <button className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                </Button>
+                <Button variant="ghost" className="text-sm font-medium">
                   Support
-                </button>
+                </Button>
               </>
             )}
           </nav>
@@ -98,21 +91,20 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
           <div className="flex items-center space-x-4">
             {isAuthenticated && user ? (
               <div className="relative">
-                <button
+                <Button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 rounded-full px-3 py-2 transition-colors"
+                  variant="ghost"
+                  className="flex items-center space-x-2 rounded-full px-3 py-2"
                 >
-                  {user.avatar ? (
-                    <img 
-                      src={user.avatar} 
-                      alt={user.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <Avatar>
+                    {user.avatar ? (
+                      <AvatarImage src={user.avatar} alt={user.name} />
+                    ) : (
+                      <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                        {user.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
                   <div className="hidden sm:block text-left">
                     <div className="flex items-center space-x-2">
                       <span className="text-sm font-medium text-gray-700">
@@ -125,7 +117,7 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                       )}
                     </div>
                   </div>
-                </button>
+                </Button>
 
                 <AnimatePresence>
                   {showUserMenu && (
@@ -147,46 +139,50 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                           )}
                         </div>
                       </div>
-                      <button 
+                      <Button 
                         onClick={() => {
                           handleNavigation('profile');
                           setShowUserMenu(false);
                         }}
-                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        variant="ghost"
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 justify-start"
                       >
                         <User className="h-4 w-4" />
                         <span>Profile</span>
-                      </button>
-                      <button 
+                      </Button>
+                      <Button 
                         onClick={() => {
                           handleNavigation('profile');
                           setShowUserMenu(false);
                         }}
-                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        variant="ghost"
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 justify-start"
                       >
                         <Settings className="h-4 w-4" />
                         <span>Settings</span>
-                      </button>
+                      </Button>
                       {user.role === 'admin' && (
-                        <button 
+                        <Button 
                           onClick={() => {
                             handleNavigation('admin');
                             setShowUserMenu(false);
                           }}
-                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                          variant="ghost"
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 justify-start"
                         >
                           <Shield className="h-4 w-4" />
                           <span>Admin Panel</span>
-                        </button>
+                        </Button>
                       )}
                       <div className="border-t border-gray-100 mt-1 pt-1">
-                        <button
+                        <Button
                           onClick={handleLogout}
-                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                          variant="ghost"
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 justify-start"
                         >
                           <LogOut className="h-4 w-4" />
                           <span>Sign out</span>
-                        </button>
+                        </Button>
                       </div>
                     </motion.div>
                   )}
@@ -194,28 +190,32 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
               </div>
             ) : (
               <div className="hidden md:flex items-center space-x-3">
-                <button
+                <Button
                   onClick={() => handleNavigation('auth')}
-                  className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                  variant="ghost"
+                  className="text-sm font-medium"
                 >
                   Sign in
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => handleNavigation('auth')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  variant="default"
+                  className="text-sm font-medium"
                 >
                   Get started
-                </button>
+                </Button>
               </div>
             )}
 
             {/* Mobile menu button */}
-            <button
+            <Button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
             >
               {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -232,65 +232,72 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
             <div className="px-4 py-4 space-y-3">
               {isAuthenticated ? (
                 <>
-                  <button
+                  <Button
                     onClick={() => handleNavigation('dashboard')}
-                    className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    variant="ghost"
+                    className="block w-full text-left text-base font-medium justify-start"
                   >
                     Dashboard
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => handleNavigation('templates')}
-                    className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    variant="ghost"
+                    className="block w-full text-left text-base font-medium justify-start"
                   >
                     Templates
-                  </button>
+                  </Button>
                   {user?.role === 'admin' && (
-                    <button
+                    <Button
                       onClick={() => handleNavigation('admin')}
-                      className="flex items-center w-full text-left text-base font-medium text-purple-700 hover:text-purple-600 transition-colors"
+                      variant="ghost"
+                      className="flex items-center w-full text-left text-base font-medium text-purple-700 hover:text-purple-600 justify-start"
                     >
                       <Shield className="h-4 w-4 mr-2" />
                       Admin Panel
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
                     onClick={() => handleNavigation('profile')}
-                    className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    variant="ghost"
+                    className="block w-full text-left text-base font-medium justify-start"
                   >
                     Profile
-                  </button>
+                  </Button>
                   <hr className="border-gray-200" />
-                  <button
+                  <Button
                     onClick={handleLogout}
-                    className="block w-full text-left text-base font-medium text-red-600 hover:text-red-700 transition-colors"
+                    variant="ghost"
+                    className="block w-full text-left text-base font-medium text-red-600 hover:text-red-700 justify-start"
                   >
                     Sign out
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>
-                  <button className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                  <Button variant="ghost" className="block w-full text-left text-base font-medium justify-start">
                     Features
-                  </button>
-                  <button className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                  </Button>
+                  <Button variant="ghost" className="block w-full text-left text-base font-medium justify-start">
                     Pricing
-                  </button>
-                  <button className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors">
+                  </Button>
+                  <Button variant="ghost" className="block w-full text-left text-base font-medium justify-start">
                     Support
-                  </button>
+                  </Button>
                   <hr className="border-gray-200" />
-                  <button
+                  <Button
                     onClick={() => handleNavigation('auth')}
-                    className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    variant="ghost"
+                    className="block w-full text-left text-base font-medium justify-start"
                   >
                     Sign in
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => handleNavigation('auth')}
-                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-base font-medium hover:bg-blue-700 transition-colors"
+                    variant="default"
+                    className="w-full text-base font-medium"
                   >
                     Get started
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
