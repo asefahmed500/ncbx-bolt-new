@@ -118,11 +118,23 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                         <p className="text-xs text-gray-500">{user.email}</p>
                         <p className="text-xs text-gray-500 capitalize">{user.plan} Plan</p>
                       </div>
-                      <button className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <button 
+                        onClick={() => {
+                          handleNavigation('profile');
+                          setShowUserMenu(false);
+                        }}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
                         <User className="h-4 w-4" />
                         <span>Profile</span>
                       </button>
-                      <button className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <button 
+                        onClick={() => {
+                          handleNavigation('profile');
+                          setShowUserMenu(false);
+                        }}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
                         <Settings className="h-4 w-4" />
                         <span>Settings</span>
                       </button>
@@ -188,6 +200,12 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                     className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors"
                   >
                     Templates
+                  </button>
+                  <button
+                    onClick={() => handleNavigation('profile')}
+                    className="block w-full text-left text-base font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                  >
+                    Profile
                   </button>
                   <hr className="border-gray-200" />
                   <button

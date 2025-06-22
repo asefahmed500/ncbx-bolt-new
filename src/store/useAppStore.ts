@@ -25,7 +25,7 @@ interface AppState {
   isAuthenticated: boolean;
   
   // App state
-  currentView: 'landing' | 'auth' | 'dashboard' | 'editor' | 'templates';
+  currentView: 'landing' | 'auth' | 'profile' | 'dashboard' | 'editor' | 'templates';
   currentWebsite: Website | null;
   
   // Editor state

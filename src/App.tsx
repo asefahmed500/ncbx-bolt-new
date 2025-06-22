@@ -5,6 +5,7 @@ import Header from './components/Layout/Header';
 import LandingPage from './components/Landing/LandingPage';
 import AuthPage from './components/Auth/AuthPage';
 import ResetPasswordPage from './components/Auth/ResetPasswordPage';
+import ProfilePage from './components/Profile/ProfilePage';
 import Dashboard from './components/Dashboard/Dashboard';
 import TemplatesPage from './components/Templates/TemplatesPage';
 import EditorPage from './components/Editor/EditorPage';
@@ -48,6 +49,8 @@ function App() {
         return <LandingPage />;
       case 'auth':
         return <AuthPage />;
+      case 'profile':
+        return <ProfilePage />;
       case 'dashboard':
         return <Dashboard />;
       case 'templates':
