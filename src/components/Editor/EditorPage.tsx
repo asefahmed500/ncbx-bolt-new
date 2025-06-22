@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Monitor, Tablet, Smartphone, Eye, Save, Undo, Redo, 
-  Settings, Users, Share2, ArrowLeft, CheckCircle, AlertCircle 
+  Settings, Users, Share2, ArrowLeft, CheckCircle, AlertCircle,
+  Layers, MessageSquare, Globe, Code, Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
@@ -9,6 +10,9 @@ import { useWebsites } from '../../hooks/useWebsites';
 import ComponentLibrary from './ComponentLibrary';
 import Canvas from './Canvas';
 import PropertiesPanel from './PropertiesPanel';
+import CollaborationPanel from './CollaborationPanel';
+import PublishModal from './PublishModal';
+import VersionHistoryPanel from './VersionHistoryPanel';
 
 const EditorPage: React.FC = () => {
   const { 
@@ -18,39 +22,68 @@ const EditorPage: React.FC = () => {
     setEditorMode, 
     togglePreviewMode,
     setCurrentView,
-    setCurrentWebsite 
+    setCurrentWebsite,
+    user
   } = useAppStore();
 
-  const { updateWebsite, publishWebsite, unpublishWebsite } = useWebsites();
+  const { 
+    updateWebsite, 
+    publishWebsite, 
+    unpublishWebsite, 
+    saveWebsiteVersion 
+  } = useWebsites();
 
-  const [showComponentLibrary, setShowComponentLibrary] = React.useState(true);
-  const [showPropertiesPanel, setShowPropertiesPanel] = React.useState(true);
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [isPublishing, setIsPublishing] = React.useState(false);
-  const [saveMessage, setSaveMessage] = React.useState('');
-  const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
+  const [showComponentLibrary, setShowComponentLibrary] = useState(true);
+  const [showPropertiesPanel, setShowPropertiesPanel] = useState(true);
+  const [showCollaborationPanel, setShowCollaborationPanel] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [editorContent, setEditorContent] = useState<any>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Auto-save functionality
-  React.useEffect(() => {
-    if (!currentWebsite) return;
+  useEffect(() => {
+    if (!currentWebsite || !hasUnsavedChanges) return;
 
     const autoSaveInterval = setInterval(() => {
       handleAutoSave();
     }, 30000); // Auto-save every 30 seconds
 
     return () => clearInterval(autoSaveInterval);
-  }, [currentWebsite]);
+  }, [currentWebsite, hasUnsavedChanges, editorContent]);
+
+  // Prompt before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const handleContentChange = (newContent: any) => {
+    setEditorContent(newContent);
+    setHasUnsavedChanges(true);
+  };
 
   const handleAutoSave = async () => {
-    if (!currentWebsite) return;
+    if (!currentWebsite || !hasUnsavedChanges) return;
 
     try {
       setIsSaving(true);
-      // In a real implementation, you would save the current editor state
-      // For now, we'll just update the updated_at timestamp
-      await updateWebsite(currentWebsite.id, {});
+      await saveWebsiteVersion(currentWebsite.id, editorContent, 'Auto-save');
       setLastSaved(new Date());
       setSaveMessage('Auto-saved');
+      setHasUnsavedChanges(false);
       setTimeout(() => setSaveMessage(''), 2000);
     } catch (error) {
       console.error('Auto-save failed:', error);
@@ -66,11 +99,11 @@ const EditorPage: React.FC = () => {
       setIsSaving(true);
       setSaveMessage('Saving...');
       
-      // In a real implementation, you would save the current editor state
-      await updateWebsite(currentWebsite.id, {});
+      await saveWebsiteVersion(currentWebsite.id, editorContent, 'Manual save');
       
       setLastSaved(new Date());
       setSaveMessage('Saved successfully');
+      setHasUnsavedChanges(false);
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
       console.error('Save failed:', error);
@@ -81,11 +114,17 @@ const EditorPage: React.FC = () => {
     }
   };
 
-  const handlePublish = async () => {
+  const handlePublish = async (customDomain?: string) => {
     if (!currentWebsite) return;
 
     try {
       setIsPublishing(true);
+      
+      // Save current version first
+      if (hasUnsavedChanges) {
+        await saveWebsiteVersion(currentWebsite.id, editorContent, 'Pre-publish save');
+        setHasUnsavedChanges(false);
+      }
       
       if (currentWebsite.status === 'published') {
         await unpublishWebsite(currentWebsite.id);
@@ -95,14 +134,16 @@ const EditorPage: React.FC = () => {
         });
         setSaveMessage('Website unpublished');
       } else {
-        await publishWebsite(currentWebsite.id);
+        const updatedWebsite = await publishWebsite(currentWebsite.id, customDomain);
         setCurrentWebsite({
           ...currentWebsite,
-          status: 'published'
+          status: 'published',
+          domain: updatedWebsite.domain
         });
         setSaveMessage('Website published successfully!');
       }
       
+      setShowPublishModal(false);
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
       console.error('Publish/unpublish failed:', error);
@@ -258,6 +299,30 @@ const EditorPage: React.FC = () => {
           <div className="w-px h-6 bg-gray-300"></div>
           
           <button
+            onClick={() => setShowVersionHistory(!showVersionHistory)}
+            className={`p-2 rounded-lg transition-colors ${
+              showVersionHistory
+                ? 'bg-purple-100 text-purple-700'
+                : 'hover:bg-gray-100 text-gray-600'
+            }`}
+            title="Version History"
+          >
+            <Layers className="h-4 w-4" />
+          </button>
+          
+          <button
+            onClick={() => setShowCollaborationPanel(!showCollaborationPanel)}
+            className={`p-2 rounded-lg transition-colors ${
+              showCollaborationPanel
+                ? 'bg-blue-100 text-blue-700'
+                : 'hover:bg-gray-100 text-gray-600'
+            }`}
+            title="Collaboration"
+          >
+            <Users className="h-4 w-4" />
+          </button>
+          
+          <button
             onClick={togglePreviewMode}
             className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors ${
               isPreviewMode
@@ -269,14 +334,9 @@ const EditorPage: React.FC = () => {
             {isPreviewMode ? 'Exit Preview' : 'Preview'}
           </button>
           
-          <button className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors">
-            <Users className="h-4 w-4 mr-2" />
-            Collaborate
-          </button>
-          
           <button 
             onClick={handleManualSave}
-            disabled={isSaving}
+            disabled={isSaving || !hasUnsavedChanges}
             className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSaving ? (
@@ -288,7 +348,7 @@ const EditorPage: React.FC = () => {
           </button>
           
           <button 
-            onClick={handlePublish}
+            onClick={() => setShowPublishModal(true)}
             disabled={isPublishing}
             className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               currentWebsite.status === 'published'
@@ -331,6 +391,21 @@ const EditorPage: React.FC = () => {
           </motion.div>
         )}
 
+        {/* Version History Panel */}
+        {!isPreviewMode && showVersionHistory && (
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="w-80 bg-white border-r border-gray-200 flex flex-col"
+          >
+            <VersionHistoryPanel 
+              websiteId={currentWebsite.id}
+              onClose={() => setShowVersionHistory(false)}
+            />
+          </motion.div>
+        )}
+
         {/* Canvas Area */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -341,6 +416,8 @@ const EditorPage: React.FC = () => {
           <Canvas 
             editorMode={editorMode}
             isPreviewMode={isPreviewMode}
+            websiteId={currentWebsite.id}
+            onContentChange={handleContentChange}
           />
         </motion.div>
 
@@ -364,6 +441,17 @@ const EditorPage: React.FC = () => {
               </div>
             </div>
             <PropertiesPanel />
+          </motion.div>
+        )}
+
+        {/* Collaboration Panel */}
+        {!isPreviewMode && showCollaborationPanel && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            <CollaborationPanel websiteId={currentWebsite.id} />
           </motion.div>
         )}
       </div>
@@ -391,6 +479,16 @@ const EditorPage: React.FC = () => {
             </button>
           )}
         </>
+      )}
+
+      {/* Publish Modal */}
+      {showPublishModal && (
+        <PublishModal
+          website={currentWebsite}
+          onClose={() => setShowPublishModal(false)}
+          onPublish={handlePublish}
+          isPublishing={isPublishing}
+        />
       )}
 
       {/* Keyboard Shortcuts Help */}

@@ -15,11 +15,44 @@ export interface Website {
   updated_at: string;
 }
 
+export interface WebsiteVersion {
+  id: string;
+  website_id: string;
+  version_number: number;
+  content: any;
+  changes_summary: string;
+  created_by: string;
+  created_at: string;
+  is_published: boolean;
+  published_at: string | null;
+}
+
+export interface WebsiteCollaborator {
+  id: string;
+  website_id: string;
+  user_id: string;
+  role: string;
+  permissions: any;
+  invited_by: string;
+  invited_at: string;
+  accepted_at: string | null;
+  last_active: string;
+}
+
+export interface WebsiteAnalytics {
+  date: string;
+  page_views: number;
+  unique_visitors: number;
+  bounce_rate: number;
+  avg_session_duration: number;
+}
+
 export interface CreateWebsiteData {
   name: string;
   description?: string;
   template: string;
   thumbnail?: string;
+  initialContent?: any;
 }
 
 export interface UpdateWebsiteData {
@@ -48,19 +81,26 @@ export const useWebsites = () => {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('websites')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      // Fetch websites where user is a collaborator
+      const { data: collaborations, error: collabError } = await supabase
+        .from('website_collaborators')
+        .select(`
+          website_id,
+          role,
+          permissions,
+          websites!inner(*)
+        `)
+        .eq('user_id', user.id);
 
-      if (fetchError) {
-        console.error('Error fetching websites:', fetchError);
-        setError(`Failed to load websites: ${fetchError.message}`);
+      if (collabError) {
+        console.error('Error fetching websites:', collabError);
+        setError(`Failed to load websites: ${collabError.message}`);
         return;
       }
 
-      setWebsites(data || []);
+      // Extract websites from collaborations
+      const websiteData = collaborations?.map(collab => collab.websites).flat() || [];
+      setWebsites(websiteData);
     } catch (err) {
       console.error('Error in fetchWebsites:', err);
       setError('An unexpected error occurred while loading websites');
@@ -96,48 +136,43 @@ export const useWebsites = () => {
     }
 
     try {
-      const insertData = {
-        user_id: user.id,
-        name: websiteData.name.trim(),
-        description: websiteData.description?.trim() || null,
-        template: websiteData.template.trim(),
-        thumbnail: websiteData.thumbnail || null,
-        status: 'draft' as const,
-        domain: null
-      };
+      console.log('Creating website with data:', websiteData);
 
-      console.log('Creating website with data:', insertData);
+      // Use the new create_website_with_version function
+      const { data, error: createError } = await supabase.rpc('create_website_with_version', {
+        website_name: websiteData.name.trim(),
+        website_description: websiteData.description?.trim() || null,
+        website_template: websiteData.template.trim(),
+        initial_content: websiteData.initialContent || {}
+      });
 
-      const { data, error: insertError } = await supabase
-        .from('websites')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating website:', insertError);
-        
-        // Provide user-friendly error messages
-        if (insertError.code === '23505') {
-          throw new Error('A website with this name already exists. Please choose a different name.');
-        } else if (insertError.code === '23503') {
-          throw new Error('Invalid user account. Please sign out and sign in again.');
-        } else if (insertError.message.includes('row-level security')) {
-          throw new Error('Permission denied. Please check your account permissions.');
-        } else {
-          throw new Error(`Failed to create website: ${insertError.message}`);
-        }
+      if (createError) {
+        console.error('Error creating website:', createError);
+        throw new Error(`Failed to create website: ${createError.message}`);
       }
 
-      if (!data) {
+      if (!data || data.length === 0) {
         throw new Error('Website was created but no data was returned');
       }
 
-      console.log('Website created successfully:', data);
+      const websiteId = data[0].website_id;
+
+      // Fetch the created website
+      const { data: newWebsite, error: fetchError } = await supabase
+        .from('websites')
+        .select('*')
+        .eq('id', websiteId)
+        .single();
+
+      if (fetchError || !newWebsite) {
+        throw new Error('Website created but failed to fetch details');
+      }
+
+      console.log('Website created successfully:', newWebsite);
 
       // Add to local state
-      setWebsites(prev => [data, ...prev]);
-      return data;
+      setWebsites(prev => [newWebsite, ...prev]);
+      return newWebsite;
     } catch (err) {
       console.error('Error in createWebsite:', err);
       if (err instanceof Error) {
@@ -197,7 +232,6 @@ export const useWebsites = () => {
         .from('websites')
         .update(cleanUpdates)
         .eq('id', id)
-        .eq('user_id', user.id) // Ensure user owns the website
         .select()
         .single();
 
@@ -255,8 +289,7 @@ export const useWebsites = () => {
       const { error: deleteError } = await supabase
         .from('websites')
         .delete()
-        .eq('id', id)
-        .eq('user_id', user.id); // Ensure user owns the website
+        .eq('id', id);
 
       if (deleteError) {
         console.error('Error deleting website:', deleteError);
@@ -317,14 +350,188 @@ export const useWebsites = () => {
     }
   };
 
-  const publishWebsite = async (id: string): Promise<Website> => {
-    console.log('Publishing website:', id);
-    return updateWebsite(id, { status: 'published' });
+  const publishWebsite = async (id: string, customDomain?: string): Promise<Website> => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      console.log('Publishing website:', id);
+
+      // Use the publish_website function
+      const { data, error: publishError } = await supabase.rpc('publish_website', {
+        website_uuid: id,
+        custom_domain_name: customDomain || null
+      });
+
+      if (publishError) {
+        console.error('Error publishing website:', publishError);
+        throw new Error(`Failed to publish website: ${publishError.message}`);
+      }
+
+      // Fetch updated website
+      const { data: updatedWebsite, error: fetchError } = await supabase
+        .from('websites')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !updatedWebsite) {
+        throw new Error('Website published but failed to fetch updated details');
+      }
+
+      // Update local state
+      setWebsites(prev => 
+        prev.map(website => 
+          website.id === id ? updatedWebsite : website
+        )
+      );
+
+      return updatedWebsite;
+    } catch (err) {
+      console.error('Error in publishWebsite:', err);
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('An unexpected error occurred while publishing the website');
+    }
   };
 
   const unpublishWebsite = async (id: string): Promise<Website> => {
     console.log('Unpublishing website:', id);
     return updateWebsite(id, { status: 'draft' });
+  };
+
+  const saveWebsiteVersion = async (websiteId: string, content: any, changesSummary?: string): Promise<string> => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('save_website_version', {
+        website_uuid: websiteId,
+        content_data: content,
+        changes_description: changesSummary || 'Auto-save'
+      });
+
+      if (error) {
+        throw new Error(`Failed to save version: ${error.message}`);
+      }
+
+      return data; // Returns version ID
+    } catch (err) {
+      console.error('Error saving website version:', err);
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('An unexpected error occurred while saving the website version');
+    }
+  };
+
+  const getWebsiteVersions = async (websiteId: string): Promise<WebsiteVersion[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('website_versions')
+        .select('*')
+        .eq('website_id', websiteId)
+        .order('version_number', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch versions: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching website versions:', err);
+      return [];
+    }
+  };
+
+  const getWebsiteCollaborators = async (websiteId: string): Promise<WebsiteCollaborator[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('website_collaborators')
+        .select(`
+          *,
+          profiles!website_collaborators_user_id_fkey(email, full_name, avatar_url)
+        `)
+        .eq('website_id', websiteId);
+
+      if (error) {
+        throw new Error(`Failed to fetch collaborators: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching website collaborators:', err);
+      return [];
+    }
+  };
+
+  const inviteCollaborator = async (
+    websiteId: string, 
+    email: string, 
+    role: string = 'editor',
+    permissions: any = { edit: true, publish: false, delete: false }
+  ): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('invite_collaborator', {
+        website_uuid: websiteId,
+        collaborator_email: email,
+        collaborator_role: role,
+        collaborator_permissions: permissions
+      });
+
+      if (error) {
+        throw new Error(`Failed to invite collaborator: ${error.message}`);
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error inviting collaborator:', err);
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('An unexpected error occurred while inviting the collaborator');
+    }
+  };
+
+  const getWebsiteAnalytics = async (
+    websiteId: string, 
+    startDate?: string, 
+    endDate?: string
+  ): Promise<WebsiteAnalytics[]> => {
+    try {
+      const { data, error } = await supabase.rpc('get_website_analytics', {
+        website_uuid: websiteId,
+        start_date: startDate || null,
+        end_date: endDate || null
+      });
+
+      if (error) {
+        throw new Error(`Failed to fetch analytics: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching website analytics:', err);
+      return [];
+    }
+  };
+
+  const recordPageView = async (websiteId: string, visitorData: any = {}): Promise<void> => {
+    try {
+      const { error } = await supabase.rpc('record_page_view', {
+        website_uuid: websiteId,
+        visitor_data: visitorData
+      });
+
+      if (error) {
+        console.error('Error recording page view:', error);
+      }
+    } catch (err) {
+      console.error('Error in recordPageView:', err);
+    }
   };
 
   const getWebsiteById = (id: string): Website | undefined => {
@@ -363,34 +570,13 @@ export const useWebsites = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'websites',
-          filter: `user_id=eq.${user.id}`
+          table: 'websites'
         },
         (payload) => {
           console.log('Real-time website change:', payload);
           
-          switch (payload.eventType) {
-            case 'INSERT':
-              setWebsites(prev => {
-                // Check if website already exists to avoid duplicates
-                const exists = prev.some(w => w.id === payload.new.id);
-                if (exists) return prev;
-                return [payload.new as Website, ...prev];
-              });
-              break;
-            case 'UPDATE':
-              setWebsites(prev => 
-                prev.map(website => 
-                  website.id === payload.new.id ? payload.new as Website : website
-                )
-              );
-              break;
-            case 'DELETE':
-              setWebsites(prev => 
-                prev.filter(website => website.id !== payload.old.id)
-              );
-              break;
-          }
+          // Refresh websites when changes occur
+          fetchWebsites();
         }
       )
       .subscribe((status) => {
@@ -414,6 +600,12 @@ export const useWebsites = () => {
     duplicateWebsite,
     publishWebsite,
     unpublishWebsite,
+    saveWebsiteVersion,
+    getWebsiteVersions,
+    getWebsiteCollaborators,
+    inviteCollaborator,
+    getWebsiteAnalytics,
+    recordPageView,
     getWebsiteById,
     getWebsitesByStatus,
     searchWebsites

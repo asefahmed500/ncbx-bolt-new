@@ -1,25 +1,51 @@
-import React from 'react';
-import { Plus, Globe, Edit3, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle, Calendar, TrendingUp, BarChart3, Zap, Settings, Eye, Upload } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Globe, Edit3, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle, Calendar, TrendingUp, BarChart3, Zap, Settings, Eye, Upload, Users, Layers } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
+import WebsiteAnalytics from './WebsiteAnalytics';
 
 const Dashboard: React.FC = () => {
   const { user, setCurrentView, setCurrentWebsite } = useAppStore();
-  const { websites, loading, error, deleteWebsite, duplicateWebsite, publishWebsite, unpublishWebsite, updateWebsite } = useWebsites();
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [filterBy, setFilterBy] = React.useState('all');
-  const [sortBy, setSortBy] = React.useState('newest');
-  const [showDeleteModal, setShowDeleteModal] = React.useState<string | null>(null);
-  const [showEditModal, setShowEditModal] = React.useState<string | null>(null);
-  const [editData, setEditData] = React.useState({
+  const { websites, loading, error, deleteWebsite, duplicateWebsite, publishWebsite, unpublishWebsite, updateWebsite, getWebsiteCollaborators } = useWebsites();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterBy, setFilterBy] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState<string | null>(null);
+  const [editData, setEditData] = useState({
     name: '',
     description: '',
     domain: ''
   });
-  const [editErrors, setEditErrors] = React.useState<Record<string, string>>({});
-  const [isUpdating, setIsUpdating] = React.useState(false);
-  const [actionLoading, setActionLoading] = React.useState<Record<string, boolean>>({});
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const [collaborators, setCollaborators] = useState<Record<string, number>>({});
+
+  // Fetch collaborators for each website
+  useEffect(() => {
+    const fetchCollaboratorsCount = async () => {
+      const counts: Record<string, number> = {};
+      
+      for (const website of websites) {
+        try {
+          const websiteCollaborators = await getWebsiteCollaborators(website.id);
+          counts[website.id] = websiteCollaborators.length;
+        } catch (error) {
+          console.error(`Error fetching collaborators for website ${website.id}:`, error);
+          counts[website.id] = 0;
+        }
+      }
+      
+      setCollaborators(counts);
+    };
+    
+    if (websites.length > 0) {
+      fetchCollaboratorsCount();
+    }
+  }, [websites]);
 
   // Filter and sort websites
   const filteredAndSortedWebsites = React.useMemo(() => {
@@ -222,9 +248,16 @@ const Dashboard: React.FC = () => {
     if (website.domain) {
       window.open(`https://${website.domain}`, '_blank');
     } else {
-      // For demo purposes, show a placeholder
-      window.open(`https://preview.ncbx.com/${website.id}`, '_blank');
+      // Generate default subdomain
+      const websiteName = website.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const websiteId = website.id.substring(0, 8);
+      const subdomain = `${websiteName}-${websiteId}.ncbx.app`;
+      window.open(`https://${subdomain}`, '_blank');
     }
+  };
+
+  const handleShowAnalytics = (websiteId: string) => {
+    setShowAnalytics(websiteId === showAnalytics ? null : websiteId);
   };
 
   const formatDate = (dateString: string) => {
@@ -502,133 +535,172 @@ const Dashboard: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-6">
               {filteredAndSortedWebsites.map((website, index) => (
-                <motion.div
-                  key={website.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.05 }}
-                  className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all overflow-hidden group border border-gray-100"
-                >
-                  <div className="relative">
-                    <img
-                      src={website.thumbnail || 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400'}
-                      alt={website.name}
-                      className="w-full h-48 object-cover"
-                    />
-                    <div className="absolute top-4 right-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        website.status === 'published' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {website.status === 'published' ? 'Published' : 'Draft'}
-                      </span>
-                    </div>
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEditWebsite(website)}
-                          className="bg-white text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center"
-                        >
-                          <Edit3 className="h-4 w-4 mr-2" />
-                          Edit
-                        </button>
-                        <button 
-                          onClick={() => handleViewWebsite(website)}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View
-                        </button>
+                <React.Fragment key={website.id}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: index * 0.05 }}
+                    className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all overflow-hidden group border border-gray-100"
+                  >
+                    <div className="flex flex-col md:flex-row">
+                      <div className="md:w-1/3 lg:w-1/4 relative">
+                        <img
+                          src={website.thumbnail || 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400'}
+                          alt={website.name}
+                          className="w-full h-48 md:h-full object-cover"
+                        />
+                        <div className="absolute top-4 right-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            website.status === 'published' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {website.status === 'published' ? 'Published' : 'Draft'}
+                          </span>
+                        </div>
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditWebsite(website)}
+                              className="bg-white text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center"
+                            >
+                              <Edit3 className="h-4 w-4 mr-2" />
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleViewWebsite(website)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center"
+                              disabled={website.status !== 'published'}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              View
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-6 flex-1">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-1 line-clamp-1">
+                              {website.name}
+                            </h3>
+                            {website.description && (
+                              <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                                {website.description}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                                {website.template}
+                              </span>
+                              {collaborators[website.id] > 1 && (
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs flex items-center">
+                                  <Users className="h-3 w-3 mr-1" />
+                                  {collaborators[website.id]} collaborators
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            {website.domain && (
+                              <p className="text-sm text-blue-600 font-medium mb-1 truncate">
+                                {website.domain}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500">
+                              Updated {formatDate(website.updated_at)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => handleEditWebsite(website)}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Edit website"
+                            >
+                              <Edit3 className="h-4 w-4 text-gray-600" />
+                            </button>
+                            <button
+                              onClick={() => handleShowEditModal(website)}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Edit properties"
+                            >
+                              <Settings className="h-4 w-4 text-gray-600" />
+                            </button>
+                            <button
+                              onClick={() => handleDuplicateWebsite(website.id)}
+                              disabled={actionLoading[`duplicate-${website.id}`]}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                              title="Duplicate website"
+                            >
+                              {actionLoading[`duplicate-${website.id}`] ? (
+                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Copy className="h-4 w-4 text-gray-600" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleShowAnalytics(website.id)}
+                              className={`p-2 rounded-lg transition-colors ${
+                                showAnalytics === website.id 
+                                  ? 'bg-blue-100 text-blue-700' 
+                                  : 'hover:bg-gray-100 text-gray-600'
+                              }`}
+                              title="View analytics"
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteModal(website.id)}
+                              className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                              title="Delete website"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </button>
+                          </div>
+                          <div className="flex space-x-2">
+                            {website.status === 'published' && (
+                              <button
+                                onClick={() => handleViewWebsite(website)}
+                                className="px-3 py-1 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleToggleStatus(website)}
+                              disabled={actionLoading[`status-${website.id}`]}
+                              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                                website.status === 'published'
+                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                  : 'bg-green-100 text-green-800 hover:bg-green-200'
+                              }`}
+                            >
+                              {actionLoading[`status-${website.id}`] ? (
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                website.status === 'published' ? 'Unpublish' : 'Publish'
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-1 line-clamp-1">
-                          {website.name}
-                        </h3>
-                        {website.description && (
-                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                            {website.description}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500">
-                          Template: {website.template}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        {website.domain && (
-                          <p className="text-sm text-blue-600 font-medium mb-1 truncate">
-                            {website.domain}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500">
-                          Updated {formatDate(website.updated_at)}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={() => handleEditWebsite(website)}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit website"
-                        >
-                          <Edit3 className="h-4 w-4 text-gray-600" />
-                        </button>
-                        <button
-                          onClick={() => handleShowEditModal(website)}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit properties"
-                        >
-                          <Settings className="h-4 w-4 text-gray-600" />
-                        </button>
-                        <button
-                          onClick={() => handleDuplicateWebsite(website.id)}
-                          disabled={actionLoading[`duplicate-${website.id}`]}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                          title="Duplicate website"
-                        >
-                          {actionLoading[`duplicate-${website.id}`] ? (
-                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Copy className="h-4 w-4 text-gray-600" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteModal(website.id)}
-                          className="p-2 hover:bg-red-100 rounded-lg transition-colors"
-                          title="Delete website"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => handleToggleStatus(website)}
-                        disabled={actionLoading[`status-${website.id}`]}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                          website.status === 'published'
-                            ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                            : 'bg-green-100 text-green-800 hover:bg-green-200'
-                        }`}
-                      >
-                        {actionLoading[`status-${website.id}`] ? (
-                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          website.status === 'published' ? 'Unpublish' : 'Publish'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+
+                  {/* Website Analytics */}
+                  {showAnalytics === website.id && (
+                    <WebsiteAnalytics websiteId={website.id} />
+                  )}
+                </React.Fragment>
               ))}
             </div>
           )}
@@ -670,7 +742,15 @@ const Dashboard: React.FC = () => {
                 <h4 className="font-semibold text-gray-900">Manage Plan</h4>
                 <p className="text-sm text-gray-600">Current: {user?.plan}</p>
               </button>
-              <button className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow text-left">
+              <button 
+                onClick={() => {
+                  // Show analytics for the first website if available
+                  if (websites.length > 0) {
+                    handleShowAnalytics(websites[0].id);
+                  }
+                }}
+                className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
+              >
                 <BarChart3 className="h-8 w-8 text-orange-600 mb-2" />
                 <h4 className="font-semibold text-gray-900">Analytics</h4>
                 <p className="text-sm text-gray-600">View insights</p>
