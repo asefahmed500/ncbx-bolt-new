@@ -1,5 +1,5 @@
 import React from 'react';
-import { Palette, Type, Spacing, Zap, Download, Upload, RotateCcw } from 'lucide-react';
+import { Palette, Type, Space as Spacing, Zap, Download, Upload, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ThemeCustomizerProps {
