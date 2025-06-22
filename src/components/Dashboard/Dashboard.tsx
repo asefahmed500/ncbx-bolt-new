@@ -1,23 +1,33 @@
 import React from 'react';
-import { Plus, Globe, Edit3, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle, Calendar, TrendingUp, BarChart3, Zap } from 'lucide-react';
+import { Plus, Globe, Edit3, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle, Calendar, TrendingUp, BarChart3, Zap, Settings, Eye, Upload } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
 
 const Dashboard: React.FC = () => {
   const { user, setCurrentView, setCurrentWebsite } = useAppStore();
-  const { websites, loading, error, deleteWebsite, duplicateWebsite } = useWebsites();
+  const { websites, loading, error, deleteWebsite, duplicateWebsite, publishWebsite, unpublishWebsite, updateWebsite } = useWebsites();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterBy, setFilterBy] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('newest');
   const [showDeleteModal, setShowDeleteModal] = React.useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = React.useState<string | null>(null);
+  const [editData, setEditData] = React.useState({
+    name: '',
+    description: '',
+    domain: ''
+  });
+  const [editErrors, setEditErrors] = React.useState<Record<string, string>>({});
+  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [actionLoading, setActionLoading] = React.useState<Record<string, boolean>>({});
 
   // Filter and sort websites
   const filteredAndSortedWebsites = React.useMemo(() => {
     let filtered = websites.filter(website => {
       const matchesSearch = website.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (website.description && website.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           website.template.toLowerCase().includes(searchTerm.toLowerCase());
+                           website.template.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (website.domain && website.domain.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesFilter = filterBy === 'all' || website.status === filterBy;
       return matchesSearch && matchesFilter;
     });
@@ -115,20 +125,96 @@ const Dashboard: React.FC = () => {
     setCurrentView('editor');
   };
 
+  const handleShowEditModal = (website: typeof websites[0]) => {
+    setEditData({
+      name: website.name,
+      description: website.description || '',
+      domain: website.domain || ''
+    });
+    setEditErrors({});
+    setShowEditModal(website.id);
+  };
+
+  const validateEditData = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!editData.name.trim()) {
+      newErrors.name = 'Website name is required';
+    } else if (editData.name.trim().length < 3) {
+      newErrors.name = 'Website name must be at least 3 characters';
+    } else if (editData.name.trim().length > 50) {
+      newErrors.name = 'Website name must be less than 50 characters';
+    }
+
+    if (editData.description && editData.description.length > 200) {
+      newErrors.description = 'Description must be less than 200 characters';
+    }
+
+    if (editData.domain && editData.domain.trim()) {
+      const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+      if (!domainRegex.test(editData.domain.trim())) {
+        newErrors.domain = 'Please enter a valid domain (e.g., example.com)';
+      }
+    }
+
+    setEditErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleUpdateWebsite = async () => {
+    if (!showEditModal || !validateEditData()) return;
+
+    try {
+      setIsUpdating(true);
+      await updateWebsite(showEditModal, {
+        name: editData.name.trim(),
+        description: editData.description.trim() || undefined,
+        domain: editData.domain.trim() || undefined
+      });
+      setShowEditModal(null);
+    } catch (error) {
+      console.error('Failed to update website:', error);
+      setEditErrors({ general: error instanceof Error ? error.message : 'Failed to update website' });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleDeleteWebsite = async (id: string) => {
     try {
+      setActionLoading(prev => ({ ...prev, [`delete-${id}`]: true }));
       await deleteWebsite(id);
       setShowDeleteModal(null);
     } catch (err) {
       console.error('Failed to delete website:', err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`delete-${id}`]: false }));
     }
   };
 
   const handleDuplicateWebsite = async (id: string) => {
     try {
+      setActionLoading(prev => ({ ...prev, [`duplicate-${id}`]: true }));
       await duplicateWebsite(id);
     } catch (err) {
       console.error('Failed to duplicate website:', err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`duplicate-${id}`]: false }));
+    }
+  };
+
+  const handleToggleStatus = async (website: typeof websites[0]) => {
+    try {
+      setActionLoading(prev => ({ ...prev, [`status-${website.id}`]: true }));
+      if (website.status === 'published') {
+        await unpublishWebsite(website.id);
+      } else {
+        await publishWebsite(website.id);
+      }
+    } catch (err) {
+      console.error('Failed to toggle website status:', err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`status-${website.id}`]: false }));
     }
   };
 
@@ -475,7 +561,7 @@ const Dashboard: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-4">
                       <div>
                         {website.domain && (
                           <p className="text-sm text-blue-600 font-medium mb-1 truncate">
@@ -486,6 +572,10 @@ const Dashboard: React.FC = () => {
                           Updated {formatDate(website.updated_at)}
                         </p>
                       </div>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between">
                       <div className="flex space-x-1">
                         <button
                           onClick={() => handleEditWebsite(website)}
@@ -495,11 +585,23 @@ const Dashboard: React.FC = () => {
                           <Edit3 className="h-4 w-4 text-gray-600" />
                         </button>
                         <button
-                          onClick={() => handleDuplicateWebsite(website.id)}
+                          onClick={() => handleShowEditModal(website)}
                           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Edit properties"
+                        >
+                          <Settings className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateWebsite(website.id)}
+                          disabled={actionLoading[`duplicate-${website.id}`]}
+                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                           title="Duplicate website"
                         >
-                          <Copy className="h-4 w-4 text-gray-600" />
+                          {actionLoading[`duplicate-${website.id}`] ? (
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Copy className="h-4 w-4 text-gray-600" />
+                          )}
                         </button>
                         <button
                           onClick={() => setShowDeleteModal(website.id)}
@@ -509,6 +611,21 @@ const Dashboard: React.FC = () => {
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </button>
                       </div>
+                      <button
+                        onClick={() => handleToggleStatus(website)}
+                        disabled={actionLoading[`status-${website.id}`]}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                          website.status === 'published'
+                            ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                            : 'bg-green-100 text-green-800 hover:bg-green-200'
+                        }`}
+                      >
+                        {actionLoading[`status-${website.id}`] ? (
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          website.status === 'published' ? 'Unpublish' : 'Publish'
+                        )}
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -580,12 +697,126 @@ const Dashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => handleDeleteWebsite(showDeleteModal)}
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors"
+                disabled={actionLoading[`delete-${showDeleteModal}`]}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
               >
-                Delete
+                {actionLoading[`delete-${showDeleteModal}`] ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Edit Website Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">Edit Website Properties</h3>
+                <button
+                  onClick={() => setShowEditModal(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              </div>
+
+              {editErrors.general && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">{editErrors.general}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="editName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Website Name *
+                  </label>
+                  <input
+                    id="editName"
+                    type="text"
+                    value={editData.name}
+                    onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      editErrors.name ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter website name"
+                  />
+                  {editErrors.name && <p className="mt-1 text-sm text-red-600">{editErrors.name}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="editDescription" className="block text-sm font-medium text-gray-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="editDescription"
+                    value={editData.description}
+                    onChange={(e) => setEditData(prev => ({ ...prev, description: e.target.value }))}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      editErrors.description ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    rows={3}
+                    placeholder="Describe your website"
+                  />
+                  {editErrors.description && <p className="mt-1 text-sm text-red-600">{editErrors.description}</p>}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {editData.description.length}/200 characters
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="editDomain" className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom Domain (Optional)
+                  </label>
+                  <input
+                    id="editDomain"
+                    type="text"
+                    value={editData.domain}
+                    onChange={(e) => setEditData(prev => ({ ...prev, domain: e.target.value }))}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      editErrors.domain ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="example.com"
+                  />
+                  {editErrors.domain && <p className="mt-1 text-sm text-red-600">{editErrors.domain}</p>}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter your custom domain without http:// or https://
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setShowEditModal(null)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateWebsite}
+                  disabled={isUpdating}
+                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {isUpdating ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Update Website
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>

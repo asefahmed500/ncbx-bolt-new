@@ -173,6 +173,14 @@ export const useWebsites = () => {
       throw new Error('Description must be less than 200 characters');
     }
 
+    if (updates.domain !== undefined && updates.domain) {
+      // Basic domain validation
+      const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+      if (!domainRegex.test(updates.domain.trim())) {
+        throw new Error('Please enter a valid domain name (e.g., example.com)');
+      }
+    }
+
     try {
       // Clean up the updates object
       const cleanUpdates: any = {};
@@ -182,6 +190,8 @@ export const useWebsites = () => {
       if (updates.status !== undefined) cleanUpdates.status = updates.status;
       if (updates.template !== undefined) cleanUpdates.template = updates.template.trim();
       if (updates.thumbnail !== undefined) cleanUpdates.thumbnail = updates.thumbnail || null;
+
+      console.log('Updating website:', id, 'with data:', cleanUpdates);
 
       const { data, error: updateError } = await supabase
         .from('websites')
@@ -197,7 +207,11 @@ export const useWebsites = () => {
         if (updateError.code === 'PGRST116') {
           throw new Error('Website not found or you do not have permission to update it');
         } else if (updateError.code === '23505') {
-          throw new Error('A website with this name already exists. Please choose a different name.');
+          if (updateError.message.includes('domain')) {
+            throw new Error('This domain is already taken. Please choose a different domain.');
+          } else {
+            throw new Error('A website with this name already exists. Please choose a different name.');
+          }
         } else {
           throw new Error(`Failed to update website: ${updateError.message}`);
         }
@@ -206,6 +220,8 @@ export const useWebsites = () => {
       if (!data) {
         throw new Error('Website was updated but no data was returned');
       }
+
+      console.log('Website updated successfully:', data);
 
       // Update local state
       setWebsites(prev => 
@@ -234,6 +250,8 @@ export const useWebsites = () => {
     }
 
     try {
+      console.log('Deleting website:', id);
+
       const { error: deleteError } = await supabase
         .from('websites')
         .delete()
@@ -249,6 +267,8 @@ export const useWebsites = () => {
           throw new Error(`Failed to delete website: ${deleteError.message}`);
         }
       }
+
+      console.log('Website deleted successfully');
 
       // Remove from local state
       setWebsites(prev => prev.filter(website => website.id !== id));
@@ -268,8 +288,20 @@ export const useWebsites = () => {
     }
 
     try {
+      console.log('Duplicating website:', id);
+
+      // Generate unique name for duplicate
+      let duplicateName = `${originalWebsite.name} (Copy)`;
+      let counter = 1;
+      
+      // Check if name already exists and increment counter
+      while (websites.some(w => w.name === duplicateName)) {
+        counter++;
+        duplicateName = `${originalWebsite.name} (Copy ${counter})`;
+      }
+
       const duplicateData: CreateWebsiteData = {
-        name: `${originalWebsite.name} (Copy)`,
+        name: duplicateName,
         description: originalWebsite.description || undefined,
         template: originalWebsite.template,
         thumbnail: originalWebsite.thumbnail || undefined
@@ -285,6 +317,16 @@ export const useWebsites = () => {
     }
   };
 
+  const publishWebsite = async (id: string): Promise<Website> => {
+    console.log('Publishing website:', id);
+    return updateWebsite(id, { status: 'published' });
+  };
+
+  const unpublishWebsite = async (id: string): Promise<Website> => {
+    console.log('Unpublishing website:', id);
+    return updateWebsite(id, { status: 'draft' });
+  };
+
   const getWebsiteById = (id: string): Website | undefined => {
     return websites.find(website => website.id === id);
   };
@@ -298,16 +340,9 @@ export const useWebsites = () => {
     return websites.filter(website => 
       website.name.toLowerCase().includes(lowercaseQuery) ||
       (website.description && website.description.toLowerCase().includes(lowercaseQuery)) ||
-      website.template.toLowerCase().includes(lowercaseQuery)
+      website.template.toLowerCase().includes(lowercaseQuery) ||
+      (website.domain && website.domain.toLowerCase().includes(lowercaseQuery))
     );
-  };
-
-  const publishWebsite = async (id: string): Promise<Website> => {
-    return updateWebsite(id, { status: 'published' });
-  };
-
-  const unpublishWebsite = async (id: string): Promise<Website> => {
-    return updateWebsite(id, { status: 'draft' });
   };
 
   // Fetch websites when user changes

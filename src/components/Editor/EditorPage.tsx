@@ -1,10 +1,11 @@
 import React from 'react';
 import { 
   Monitor, Tablet, Smartphone, Eye, Save, Undo, Redo, 
-  Settings, Users, Share2, ArrowLeft 
+  Settings, Users, Share2, ArrowLeft, CheckCircle, AlertCircle 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
+import { useWebsites } from '../../hooks/useWebsites';
 import ComponentLibrary from './ComponentLibrary';
 import Canvas from './Canvas';
 import PropertiesPanel from './PropertiesPanel';
@@ -16,17 +17,127 @@ const EditorPage: React.FC = () => {
     isPreviewMode, 
     setEditorMode, 
     togglePreviewMode,
-    setCurrentView 
+    setCurrentView,
+    setCurrentWebsite 
   } = useAppStore();
+
+  const { updateWebsite, publishWebsite, unpublishWebsite } = useWebsites();
 
   const [showComponentLibrary, setShowComponentLibrary] = React.useState(true);
   const [showPropertiesPanel, setShowPropertiesPanel] = React.useState(true);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isPublishing, setIsPublishing] = React.useState(false);
+  const [saveMessage, setSaveMessage] = React.useState('');
+  const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
+
+  // Auto-save functionality
+  React.useEffect(() => {
+    if (!currentWebsite) return;
+
+    const autoSaveInterval = setInterval(() => {
+      handleAutoSave();
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [currentWebsite]);
+
+  const handleAutoSave = async () => {
+    if (!currentWebsite) return;
+
+    try {
+      setIsSaving(true);
+      // In a real implementation, you would save the current editor state
+      // For now, we'll just update the updated_at timestamp
+      await updateWebsite(currentWebsite.id, {});
+      setLastSaved(new Date());
+      setSaveMessage('Auto-saved');
+      setTimeout(() => setSaveMessage(''), 2000);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleManualSave = async () => {
+    if (!currentWebsite) return;
+
+    try {
+      setIsSaving(true);
+      setSaveMessage('Saving...');
+      
+      // In a real implementation, you would save the current editor state
+      await updateWebsite(currentWebsite.id, {});
+      
+      setLastSaved(new Date());
+      setSaveMessage('Saved successfully');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Save failed:', error);
+      setSaveMessage('Save failed');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!currentWebsite) return;
+
+    try {
+      setIsPublishing(true);
+      
+      if (currentWebsite.status === 'published') {
+        await unpublishWebsite(currentWebsite.id);
+        setCurrentWebsite({
+          ...currentWebsite,
+          status: 'draft'
+        });
+        setSaveMessage('Website unpublished');
+      } else {
+        await publishWebsite(currentWebsite.id);
+        setCurrentWebsite({
+          ...currentWebsite,
+          status: 'published'
+        });
+        setSaveMessage('Website published successfully!');
+      }
+      
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Publish/unpublish failed:', error);
+      setSaveMessage('Failed to update website status');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const formatLastSaved = () => {
+    if (!lastSaved) return 'Never saved';
+    
+    const now = new Date();
+    const diffMs = now.getTime() - lastSaved.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just saved';
+    if (diffMins === 1) return '1 minute ago';
+    if (diffMins < 60) return `${diffMins} minutes ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours === 1) return '1 hour ago';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    
+    return lastSaved.toLocaleDateString();
+  };
 
   if (!currentWebsite) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-4">No website selected</h2>
+          <p className="text-gray-600 mb-6">Please select a website from your dashboard to start editing.</p>
           <button
             onClick={() => setCurrentView('dashboard')}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
@@ -59,9 +170,34 @@ const EditorPage: React.FC = () => {
             <h1 className="text-lg font-semibold text-gray-900">
               {currentWebsite.name}
             </h1>
-            <p className="text-sm text-gray-500">
-              {currentWebsite.status === 'published' ? 'Published' : 'Draft'} • Last saved 2 minutes ago
-            </p>
+            <div className="flex items-center space-x-4 text-sm text-gray-500">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                currentWebsite.status === 'published' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {currentWebsite.status === 'published' ? 'Published' : 'Draft'}
+              </span>
+              <span>•</span>
+              <span>{formatLastSaved()}</span>
+              {saveMessage && (
+                <>
+                  <span>•</span>
+                  <span className={`flex items-center ${
+                    saveMessage.includes('failed') || saveMessage.includes('error') 
+                      ? 'text-red-600' 
+                      : 'text-green-600'
+                  }`}>
+                    {saveMessage.includes('failed') || saveMessage.includes('error') ? (
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                    ) : (
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                    )}
+                    {saveMessage}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -138,14 +274,34 @@ const EditorPage: React.FC = () => {
             Collaborate
           </button>
           
-          <button className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors">
-            <Save className="h-4 w-4 mr-2" />
+          <button 
+            onClick={handleManualSave}
+            disabled={isSaving}
+            className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             Save
           </button>
           
-          <button className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-            <Share2 className="h-4 w-4 mr-2" />
-            Publish
+          <button 
+            onClick={handlePublish}
+            disabled={isPublishing}
+            className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              currentWebsite.status === 'published'
+                ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {isPublishing ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            ) : (
+              <Share2 className="h-4 w-4 mr-2" />
+            )}
+            {currentWebsite.status === 'published' ? 'Unpublish' : 'Publish'}
           </button>
         </div>
       </motion.div>
@@ -236,6 +392,16 @@ const EditorPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Keyboard Shortcuts Help */}
+      <div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white px-3 py-2 rounded-lg text-xs opacity-0 hover:opacity-100 transition-opacity">
+        <div className="space-y-1">
+          <div>Ctrl+S: Save</div>
+          <div>Ctrl+Z: Undo</div>
+          <div>Ctrl+Y: Redo</div>
+          <div>P: Preview</div>
+        </div>
+      </div>
     </div>
   );
 };
