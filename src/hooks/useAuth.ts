@@ -85,7 +85,18 @@ export const useAuth = () => {
           switch (event) {
             case 'SIGNED_IN':
               if (session) {
-                setCurrentView('dashboard');
+                // Check if user is admin and redirect accordingly
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('role')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profile?.role === 'admin') {
+                  setCurrentView('admin');
+                } else {
+                  setCurrentView('dashboard');
+                }
               }
               break;
             case 'SIGNED_OUT':
@@ -146,7 +157,8 @@ export const useAuth = () => {
           avatar_url: user.user_metadata?.avatar_url || 
                      user.user_metadata?.picture || 
                      null,
-          plan: 'free' as const
+          plan: 'free' as const,
+          role: 'user' as const // Default role for new users
         };
 
         const { data: newProfile, error: insertError } = await supabase
@@ -224,7 +236,8 @@ export const useAuth = () => {
               'User',
         email: user.email || '',
         avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
-        plan: 'free'
+        plan: 'free',
+        role: 'user'
       });
     }
   };
@@ -241,7 +254,8 @@ export const useAuth = () => {
       avatar: profile?.avatar_url || 
               user.user_metadata?.avatar_url || 
               user.user_metadata?.picture,
-      plan: profile?.plan || 'free'
+      plan: profile?.plan || 'free',
+      role: profile?.role || 'user'
     });
   };
 

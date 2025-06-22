@@ -6,6 +6,7 @@ interface User {
   email: string;
   avatar?: string;
   plan: 'free' | 'pro' | 'business';
+  role: 'user' | 'admin';
 }
 
 interface Website {
@@ -25,7 +26,7 @@ interface AppState {
   isAuthenticated: boolean;
   
   // App state
-  currentView: 'landing' | 'auth' | 'profile' | 'dashboard' | 'editor' | 'templates';
+  currentView: 'landing' | 'auth' | 'profile' | 'dashboard' | 'editor' | 'templates' | 'admin';
   currentWebsite: Website | null;
   
   // Editor state

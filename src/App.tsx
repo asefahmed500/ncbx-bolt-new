@@ -9,6 +9,7 @@ import ProfilePage from './components/Profile/ProfilePage';
 import Dashboard from './components/Dashboard/Dashboard';
 import TemplatesPage from './components/Templates/TemplatesPage';
 import EditorPage from './components/Editor/EditorPage';
+import AdminDashboard from './components/Admin/AdminDashboard';
 
 function App() {
   const { currentView } = useAppStore();
@@ -57,6 +58,8 @@ function App() {
         return <TemplatesPage />;
       case 'editor':
         return <EditorPage />;
+      case 'admin':
+        return <AdminDashboard />;
       default:
         return <LandingPage />;
     }
