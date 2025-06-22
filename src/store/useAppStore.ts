@@ -27,7 +27,6 @@ interface AppState {
   // App state
   currentView: 'landing' | 'auth' | 'dashboard' | 'editor' | 'templates';
   currentWebsite: Website | null;
-  websites: Website[];
   
   // Editor state
   selectedComponent: string | null;
@@ -38,8 +37,6 @@ interface AppState {
   setUser: (user: User | null) => void;
   setCurrentView: (view: AppState['currentView']) => void;
   setCurrentWebsite: (website: Website | null) => void;
-  addWebsite: (website: Website) => void;
-  updateWebsite: (id: string, updates: Partial<Website>) => void;
   setSelectedComponent: (id: string | null) => void;
   setEditorMode: (mode: AppState['editorMode']) => void;
   togglePreviewMode: () => void;
@@ -52,7 +49,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   currentView: 'landing',
   currentWebsite: null,
-  websites: [],
   selectedComponent: null,
   editorMode: 'desktop',
   isPreviewMode: false,
@@ -61,10 +57,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setCurrentView: (currentView) => set({ currentView }),
   setCurrentWebsite: (currentWebsite) => set({ currentWebsite }),
-  addWebsite: (website) => set((state) => ({ websites: [...state.websites, website] })),
-  updateWebsite: (id, updates) => set((state) => ({
-    websites: state.websites.map(w => w.id === id ? { ...w, ...updates } : w)
-  })),
   setSelectedComponent: (selectedComponent) => set({ selectedComponent }),
   setEditorMode: (editorMode) => set({ editorMode }),
   togglePreviewMode: () => set((state) => ({ isPreviewMode: !state.isPreviewMode })),
@@ -72,7 +64,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     user: null,
     isAuthenticated: false,
     currentView: 'landing',
-    currentWebsite: null,
-    websites: []
+    currentWebsite: null
   })
 }));

@@ -1,54 +1,19 @@
 import React from 'react';
-import { Plus, Globe, Edit3, MoreHorizontal, Search, Filter, Trash2, Copy, ExternalLink } from 'lucide-react';
+import { Plus, Globe, Edit3, MoreHorizontal, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
+import { useWebsites } from '../../hooks/useWebsites';
 
 const Dashboard: React.FC = () => {
-  const { user, websites, setCurrentView, setCurrentWebsite, addWebsite } = useAppStore();
+  const { user, setCurrentView, setCurrentWebsite } = useAppStore();
+  const { websites, loading, error, deleteWebsite, duplicateWebsite } = useWebsites();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterBy, setFilterBy] = React.useState('all');
-
-  // Mock websites data if empty
-  React.useEffect(() => {
-    if (websites.length === 0) {
-      const mockWebsites = [
-        {
-          id: '1',
-          name: 'Portfolio Website',
-          description: 'My personal portfolio showcasing my work',
-          domain: 'john-doe.ncbx.app',
-          status: 'published' as const,
-          lastModified: new Date('2024-01-15'),
-          template: 'Portfolio Pro',
-          thumbnail: 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400'
-        },
-        {
-          id: '2',
-          name: 'Restaurant Landing',
-          description: 'Modern landing page for local restaurant',
-          status: 'draft' as const,
-          lastModified: new Date('2024-01-14'),
-          template: 'Restaurant Deluxe',
-          thumbnail: 'https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=400'
-        },
-        {
-          id: '3',
-          name: 'E-commerce Store',
-          description: 'Online store for handmade crafts',
-          domain: 'crafts-store.com',
-          status: 'published' as const,
-          lastModified: new Date('2024-01-13'),
-          template: 'Shop Modern',
-          thumbnail: 'https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=400'
-        }
-      ];
-      mockWebsites.forEach(addWebsite);
-    }
-  }, [websites.length, addWebsite]);
+  const [showDeleteModal, setShowDeleteModal] = React.useState<string | null>(null);
 
   const filteredWebsites = websites.filter(website => {
     const matchesSearch = website.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         website.description.toLowerCase().includes(searchTerm.toLowerCase());
+                         (website.description && website.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesFilter = filterBy === 'all' || website.status === filterBy;
     return matchesSearch && matchesFilter;
   });
@@ -58,8 +23,39 @@ const Dashboard: React.FC = () => {
   };
 
   const handleEditWebsite = (website: typeof websites[0]) => {
-    setCurrentWebsite(website);
+    // Convert database website to app store format
+    const appWebsite = {
+      id: website.id,
+      name: website.name,
+      description: website.description || '',
+      domain: website.domain || undefined,
+      status: website.status,
+      lastModified: new Date(website.updated_at),
+      template: website.template,
+      thumbnail: website.thumbnail || undefined
+    };
+    
+    setCurrentWebsite(appWebsite);
     setCurrentView('editor');
+  };
+
+  const handleDeleteWebsite = async (id: string) => {
+    try {
+      await deleteWebsite(id);
+      setShowDeleteModal(null);
+    } catch (err) {
+      console.error('Failed to delete website:', err);
+      // You could add a toast notification here
+    }
+  };
+
+  const handleDuplicateWebsite = async (id: string) => {
+    try {
+      await duplicateWebsite(id);
+    } catch (err) {
+      console.error('Failed to duplicate website:', err);
+      // You could add a toast notification here
+    }
   };
 
   const stats = [
@@ -67,9 +63,39 @@ const Dashboard: React.FC = () => {
     { label: 'Published', value: websites.filter(w => w.status === 'published').length, color: 'bg-green-500' },
     { label: 'Drafts', value: websites.filter(w => w.status === 'draft').length, color: 'bg-yellow-500' },
     { label: 'This Month', value: websites.filter(w => 
-      new Date(w.lastModified).getMonth() === new Date().getMonth()
+      new Date(w.created_at).getMonth() === new Date().getMonth() &&
+      new Date(w.created_at).getFullYear() === new Date().getFullYear()
     ).length, color: 'bg-purple-500' }
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your websites...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load websites</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -235,17 +261,14 @@ const Dashboard: React.FC = () => {
                         <h3 className="text-xl font-semibold text-gray-900 mb-1">
                           {website.name}
                         </h3>
-                        <p className="text-gray-600 text-sm mb-2">
-                          {website.description}
-                        </p>
+                        {website.description && (
+                          <p className="text-gray-600 text-sm mb-2">
+                            {website.description}
+                          </p>
+                        )}
                         <p className="text-xs text-gray-500">
                           Template: {website.template}
                         </p>
-                      </div>
-                      <div className="relative">
-                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                          <MoreHorizontal className="h-5 w-5 text-gray-400" />
-                        </button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
@@ -256,7 +279,7 @@ const Dashboard: React.FC = () => {
                           </p>
                         )}
                         <p className="text-xs text-gray-500">
-                          Modified {website.lastModified.toLocaleDateString()}
+                          Modified {new Date(website.updated_at).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex space-x-2">
@@ -268,12 +291,14 @@ const Dashboard: React.FC = () => {
                           <Edit3 className="h-4 w-4 text-gray-600" />
                         </button>
                         <button
+                          onClick={() => handleDuplicateWebsite(website.id)}
                           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                           title="Duplicate website"
                         >
                           <Copy className="h-4 w-4 text-gray-600" />
                         </button>
                         <button
+                          onClick={() => setShowDeleteModal(website.id)}
                           className="p-2 hover:bg-red-100 rounded-lg transition-colors"
                           title="Delete website"
                         >
@@ -330,6 +355,32 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Website</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this website? This action cannot be undone.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(null)}
+                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteWebsite(showDeleteModal)}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

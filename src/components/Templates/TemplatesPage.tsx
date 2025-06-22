@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Filter, Star, Eye, ArrowRight, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
+import { useWebsites } from '../../hooks/useWebsites';
 
 interface Template {
   id: string;
@@ -16,10 +17,12 @@ interface Template {
 }
 
 const TemplatesPage: React.FC = () => {
-  const { setCurrentWebsite, setCurrentView, addWebsite } = useAppStore();
+  const { setCurrentWebsite, setCurrentView } = useAppStore();
+  const { createWebsite } = useWebsites();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('popular');
+  const [isCreating, setIsCreating] = React.useState(false);
 
   const categories = [
     { id: 'all', name: 'All Templates', count: 48 },
@@ -143,20 +146,38 @@ const TemplatesPage: React.FC = () => {
     }
   });
 
-  const handleUseTemplate = (template: Template) => {
-    const newWebsite = {
-      id: Date.now().toString(),
-      name: `${template.name} Website`,
-      description: `Website created from ${template.name} template`,
-      status: 'draft' as const,
-      lastModified: new Date(),
-      template: template.name,
-      thumbnail: template.preview
-    };
-    
-    addWebsite(newWebsite);
-    setCurrentWebsite(newWebsite);
-    setCurrentView('editor');
+  const handleUseTemplate = async (template: Template) => {
+    try {
+      setIsCreating(true);
+      
+      // Create website in database
+      const newWebsite = await createWebsite({
+        name: `${template.name} Website`,
+        description: `Website created from ${template.name} template`,
+        template: template.name,
+        thumbnail: template.preview
+      });
+      
+      // Convert to app store format and navigate to editor
+      const appWebsite = {
+        id: newWebsite.id,
+        name: newWebsite.name,
+        description: newWebsite.description || '',
+        domain: newWebsite.domain || undefined,
+        status: newWebsite.status,
+        lastModified: new Date(newWebsite.updated_at),
+        template: newWebsite.template,
+        thumbnail: newWebsite.thumbnail || undefined
+      };
+      
+      setCurrentWebsite(appWebsite);
+      setCurrentView('editor');
+    } catch (error) {
+      console.error('Failed to create website:', error);
+      // You could add a toast notification here
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -298,10 +319,17 @@ const TemplatesPage: React.FC = () => {
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <button
                         onClick={() => handleUseTemplate(template)}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center"
+                        disabled={isCreating}
+                        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Use Template
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                        {isCreating ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        ) : (
+                          <>
+                            Use Template
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -337,9 +365,14 @@ const TemplatesPage: React.FC = () => {
                     </div>
                     <button
                       onClick={() => handleUseTemplate(template)}
-                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      disabled={isCreating}
+                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
-                      Use This Template
+                      {isCreating ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        'Use This Template'
+                      )}
                     </button>
                   </div>
                 </motion.div>
