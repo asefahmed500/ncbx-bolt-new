@@ -98,8 +98,25 @@ export const useStripe = () => {
         'Advanced analytics',
         'Team collaboration'
       ],
-      stripePriceId: 'price_pro_monthly',
+      stripePriceId: 'price_pro_monthly', // Update with actual Stripe price ID
       popular: true
+    },
+    {
+      id: 'pro_yearly',
+      name: 'Pro',
+      price: 120,
+      interval: 'year',
+      features: [
+        'Unlimited websites',
+        'Premium templates',
+        'Custom domains',
+        '100GB storage',
+        'Priority support',
+        'Advanced analytics',
+        'Team collaboration',
+        '2 months free!'
+      ],
+      stripePriceId: 'price_pro_yearly' // Update with actual Stripe price ID
     },
     {
       id: 'business',
@@ -115,7 +132,24 @@ export const useStripe = () => {
         'Custom templates',
         'API access'
       ],
-      stripePriceId: 'price_business_monthly'
+      stripePriceId: 'price_business_monthly' // Update with actual Stripe price ID
+    },
+    {
+      id: 'business_yearly',
+      name: 'Business',
+      price: 390,
+      interval: 'year',
+      features: [
+        'Everything in Pro',
+        'White-label solution',
+        'Advanced integrations',
+        '500GB storage',
+        '24/7 phone support',
+        'Custom templates',
+        'API access',
+        '2 months free!'
+      ],
+      stripePriceId: 'price_business_yearly' // Update with actual Stripe price ID
     }
   ];
 
@@ -131,7 +165,7 @@ export const useStripe = () => {
       const { data, error: functionError } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           priceId,
-          successUrl: successUrl || `${window.location.origin}/dashboard?success=true`,
+          successUrl: successUrl || `${window.location.origin}/profile?success=true`,
           cancelUrl: cancelUrl || `${window.location.origin}/profile?canceled=true`,
           userId: user.id,
           userEmail: user.email
