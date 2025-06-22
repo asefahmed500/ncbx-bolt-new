@@ -85,18 +85,7 @@ export const useAuth = () => {
           switch (event) {
             case 'SIGNED_IN':
               if (session) {
-                // Check if user is admin and redirect accordingly
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('role')
-                  .eq('id', session.user.id)
-                  .single();
-                
-                if (profile?.role === 'admin') {
-                  setCurrentView('admin');
-                } else {
-                  setCurrentView('dashboard');
-                }
+                setCurrentView('dashboard');
               }
               break;
             case 'SIGNED_OUT':
@@ -158,7 +147,7 @@ export const useAuth = () => {
                      user.user_metadata?.picture || 
                      null,
           plan: 'free' as const,
-          role: 'user' as const // Default role for new users
+          role: user.email === 'admin@gmail.com' ? 'admin' as const : 'user' as const
         };
 
         const { data: newProfile, error: insertError } = await supabase
@@ -195,7 +184,8 @@ export const useAuth = () => {
         const shouldUpdate = 
           profile.email !== user.email ||
           (!profile.full_name && (user.user_metadata?.full_name || user.user_metadata?.name)) ||
-          (!profile.avatar_url && (user.user_metadata?.avatar_url || user.user_metadata?.picture));
+          (!profile.avatar_url && (user.user_metadata?.avatar_url || user.user_metadata?.picture)) ||
+          (user.email === 'admin@gmail.com' && profile.role !== 'admin');
 
         if (shouldUpdate) {
           const updates: any = {};
@@ -205,6 +195,11 @@ export const useAuth = () => {
           }
           if (!profile.avatar_url && (user.user_metadata?.avatar_url || user.user_metadata?.picture)) {
             updates.avatar_url = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+          }
+          // Ensure admin@gmail.com always has admin role
+          if (user.email === 'admin@gmail.com' && profile.role !== 'admin') {
+            updates.role = 'admin';
+            updates.plan = 'business';
           }
 
           const { data: updatedProfile, error: updateError } = await supabase
@@ -237,7 +232,7 @@ export const useAuth = () => {
         email: user.email || '',
         avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
         plan: 'free',
-        role: 'user'
+        role: user.email === 'admin@gmail.com' ? 'admin' : 'user'
       });
     }
   };
@@ -255,7 +250,7 @@ export const useAuth = () => {
               user.user_metadata?.avatar_url || 
               user.user_metadata?.picture,
       plan: profile?.plan || 'free',
-      role: profile?.role || 'user'
+      role: profile?.role || (user.email === 'admin@gmail.com' ? 'admin' : 'user')
     });
   };
 

@@ -1,21 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, 
-  Globe, 
-  TrendingUp, 
-  DollarSign, 
-  Shield, 
-  Settings, 
-  Search,
-  Filter,
-  MoreVertical,
-  Edit,
-  Trash2,
-  UserPlus,
-  AlertCircle,
-  CheckCircle,
-  Calendar,
-  BarChart3
+  Users, Globe, CreditCard, TrendingUp, Search, Filter, 
+  Shield, Edit, Trash2, AlertCircle, CheckCircle, Crown,
+  BarChart3, Calendar, DollarSign, Activity
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
@@ -54,107 +41,124 @@ const AdminDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin'>('all');
   const [filterPlan, setFilterPlan] = useState<'all' | 'free' | 'pro' | 'business'>('all');
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const [updating, setUpdating] = useState<string | null>(null);
 
   // Redirect if not admin
   useEffect(() => {
-    if (!user) {
-      setCurrentView('auth');
-      return;
-    }
-    
-    if (user.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       setCurrentView('dashboard');
-      return;
     }
-
-    loadAdminData();
   }, [user, setCurrentView]);
 
-  const loadAdminData = async () => {
+  // Fetch admin data
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      fetchAdminData();
+    }
+  }, [user]);
+
+  const fetchAdminData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Load system statistics
-      const { data: statsData, error: statsError } = await supabase.rpc('admin_get_system_stats');
-      if (statsError) throw statsError;
+      // Fetch system statistics
+      const { data: statsData, error: statsError } = await supabase
+        .rpc('admin_get_system_stats');
 
-      // Load all users
-      const { data: usersData, error: usersError } = await supabase.rpc('admin_get_all_users');
-      if (usersError) throw usersError;
+      if (statsError) {
+        throw new Error(`Failed to fetch statistics: ${statsError.message}`);
+      }
 
-      setStats(statsData[0]);
+      if (statsData && statsData.length > 0) {
+        setStats(statsData[0]);
+      }
+
+      // Fetch all users
+      const { data: usersData, error: usersError } = await supabase
+        .rpc('admin_get_all_users');
+
+      if (usersError) {
+        throw new Error(`Failed to fetch users: ${usersError.message}`);
+      }
+
       setUsers(usersData || []);
     } catch (err) {
-      console.error('Error loading admin data:', err);
+      console.error('Error fetching admin data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load admin data');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateUserRole = async (userId: string, newRole: 'user' | 'admin') => {
+  const updateUserRole = async (userId: string, newRole: 'user' | 'admin') => {
     try {
-      setActionLoading(prev => ({ ...prev, [`role-${userId}`]: true }));
+      setUpdating(`role-${userId}`);
       
-      const { error } = await supabase.rpc('admin_update_user_role', {
-        target_user_id: userId,
-        new_role: newRole
-      });
+      const { error } = await supabase
+        .rpc('admin_update_user_role', {
+          target_user_id: userId,
+          new_role: newRole
+        });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message);
+      }
 
-      // Log admin action
-      await supabase.rpc('log_admin_action', {
-        action_type: 'update_user_role',
-        target_user_id: userId,
-        new_values: { role: newRole }
-      });
+      // Update local state
+      setUsers(prev => 
+        prev.map(u => 
+          u.id === userId ? { ...u, role: newRole } : u
+        )
+      );
 
-      // Reload data
-      await loadAdminData();
+      // Show success message
+      setError(null);
     } catch (err) {
       console.error('Error updating user role:', err);
       setError(err instanceof Error ? err.message : 'Failed to update user role');
     } finally {
-      setActionLoading(prev => ({ ...prev, [`role-${userId}`]: false }));
+      setUpdating(null);
     }
   };
 
-  const handleUpdateUserPlan = async (userId: string, newPlan: 'free' | 'pro' | 'business') => {
+  const updateUserPlan = async (userId: string, newPlan: 'free' | 'pro' | 'business') => {
     try {
-      setActionLoading(prev => ({ ...prev, [`plan-${userId}`]: true }));
+      setUpdating(`plan-${userId}`);
       
-      const { error } = await supabase.rpc('admin_update_user_plan', {
-        target_user_id: userId,
-        new_plan: newPlan
-      });
+      const { error } = await supabase
+        .rpc('admin_update_user_plan', {
+          target_user_id: userId,
+          new_plan: newPlan
+        });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message);
+      }
 
-      // Log admin action
-      await supabase.rpc('log_admin_action', {
-        action_type: 'update_user_plan',
-        target_user_id: userId,
-        new_values: { plan: newPlan }
-      });
+      // Update local state
+      setUsers(prev => 
+        prev.map(u => 
+          u.id === userId ? { ...u, plan: newPlan } : u
+        )
+      );
 
-      // Reload data
-      await loadAdminData();
+      // Update stats
+      await fetchAdminData();
+      
+      setError(null);
     } catch (err) {
       console.error('Error updating user plan:', err);
       setError(err instanceof Error ? err.message : 'Failed to update user plan');
     } finally {
-      setActionLoading(prev => ({ ...prev, [`plan-${userId}`]: false }));
+      setUpdating(null);
     }
   };
 
+  // Filter users
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (user.full_name && user.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
+                         user.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === 'all' || user.role === filterRole;
     const matchesPlan = filterPlan === 'all' || user.plan === filterPlan;
     return matchesSearch && matchesRole && matchesPlan;
@@ -162,31 +166,14 @@ const AdminDashboard: React.FC = () => {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getRoleBadgeColor = (role: string) => {
-    return role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800';
-  };
-
-  const getPlanBadgeColor = (plan: string) => {
-    switch (plan) {
-      case 'free': return 'bg-gray-100 text-gray-800';
-      case 'pro': return 'bg-green-100 text-green-800';
-      case 'business': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    return new Date(dateString).toLocaleDateString();
   };
 
   if (!user || user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Shield className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
           <p className="text-gray-600 mb-6">You need admin privileges to access this page</p>
           <button
@@ -204,7 +191,7 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading admin dashboard...</p>
         </div>
       </div>
@@ -223,22 +210,19 @@ const AdminDashboard: React.FC = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                <Shield className="h-8 w-8 text-blue-600 mr-3" />
-                Admin Dashboard
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Manage users, monitor system performance, and oversee platform operations
-              </p>
+              <div className="flex items-center space-x-3 mb-2">
+                <Shield className="h-8 w-8 text-purple-600" />
+                <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              </div>
+              <p className="text-gray-600">System overview and user management</p>
             </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={loadAdminData}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Refresh Data
-              </button>
-            </div>
+            <button
+              onClick={fetchAdminData}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center"
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              Refresh Data
+            </button>
           </div>
         </motion.div>
 
@@ -254,25 +238,23 @@ const AdminDashboard: React.FC = () => {
           </motion.div>
         )}
 
-        {/* Stats Cards */}
+        {/* Statistics Cards */}
         {stats && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
           >
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm text-green-600 font-medium">
-                  +{stats.users_this_month} this month
-                </span>
+                <span className="text-2xl font-bold text-gray-900">{stats.total_users}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.total_users}</p>
-              <p className="text-sm text-gray-600">Total Users</p>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Total Users</h3>
+              <p className="text-xs text-gray-500">+{stats.users_this_month} this month</p>
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -280,38 +262,32 @@ const AdminDashboard: React.FC = () => {
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                   <Globe className="h-6 w-6 text-green-600" />
                 </div>
-                <span className="text-sm text-green-600 font-medium">
-                  +{stats.websites_this_month} this month
-                </span>
+                <span className="text-2xl font-bold text-gray-900">{stats.total_websites}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.total_websites}</p>
-              <p className="text-sm text-gray-600">Total Websites</p>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Total Websites</h3>
+              <p className="text-xs text-gray-500">{stats.total_published_websites} published</p>
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                  <Crown className="h-6 w-6 text-purple-600" />
                 </div>
-                <span className="text-sm text-gray-600">
-                  {Math.round((stats.total_published_websites / stats.total_websites) * 100)}% published
-                </span>
+                <span className="text-2xl font-bold text-gray-900">{stats.total_premium_templates}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.total_published_websites}</p>
-              <p className="text-sm text-gray-600">Published Websites</p>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Premium Templates</h3>
+              <p className="text-xs text-gray-500">Active templates</p>
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-6 w-6 text-orange-600" />
+                  <TrendingUp className="h-6 w-6 text-orange-600" />
                 </div>
-                <span className="text-sm text-gray-600">
-                  {stats.pro_users + stats.business_users} paid
-                </span>
+                <span className="text-2xl font-bold text-gray-900">{stats.websites_this_month}</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.total_premium_templates}</p>
-              <p className="text-sm text-gray-600">Premium Templates</p>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">New Websites</h3>
+              <p className="text-xs text-gray-500">This month</p>
             </div>
           </motion.div>
         )}
@@ -327,40 +303,31 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Plan Distribution</h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-600">{stats.free_users}</p>
-                <p className="text-sm text-gray-500">Free Users</p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-gray-500 h-2 rounded-full" 
-                    style={{ width: `${(stats.free_users / stats.total_users) * 100}%` }}
-                  ></div>
+                <div className="text-2xl font-bold text-gray-900">{stats.free_users}</div>
+                <div className="text-sm text-gray-600">Free Users</div>
+                <div className="text-xs text-gray-500">
+                  {stats.total_users > 0 ? Math.round((stats.free_users / stats.total_users) * 100) : 0}%
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{stats.pro_users}</p>
-                <p className="text-sm text-gray-500">Pro Users</p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-green-500 h-2 rounded-full" 
-                    style={{ width: `${(stats.pro_users / stats.total_users) * 100}%` }}
-                  ></div>
+                <div className="text-2xl font-bold text-blue-600">{stats.pro_users}</div>
+                <div className="text-sm text-gray-600">Pro Users</div>
+                <div className="text-xs text-gray-500">
+                  {stats.total_users > 0 ? Math.round((stats.pro_users / stats.total_users) * 100) : 0}%
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-purple-600">{stats.business_users}</p>
-                <p className="text-sm text-gray-500">Business Users</p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-purple-500 h-2 rounded-full" 
-                    style={{ width: `${(stats.business_users / stats.total_users) * 100}%` }}
-                  ></div>
+                <div className="text-2xl font-bold text-purple-600">{stats.business_users}</div>
+                <div className="text-sm text-gray-600">Business Users</div>
+                <div className="text-xs text-gray-500">
+                  {stats.total_users > 0 ? Math.round((stats.business_users / stats.total_users) * 100) : 0}%
                 </div>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* Users Management */}
+        {/* User Management */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -368,45 +335,45 @@ const AdminDashboard: React.FC = () => {
           className="bg-white rounded-xl shadow-sm border border-gray-100"
         >
           <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">User Management</h3>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add User
-              </button>
-            </div>
-
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">User Management</h3>
+            
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   type="text"
                   placeholder="Search users by email or name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Roles</option>
-                <option value="user">Users</option>
-                <option value="admin">Admins</option>
-              </select>
-              <select
-                value={filterPlan}
-                onChange={(e) => setFilterPlan(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Plans</option>
-                <option value="free">Free</option>
-                <option value="pro">Pro</option>
-                <option value="business">Business</option>
-              </select>
+              
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-5 w-5 text-gray-400" />
+                  <select
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value as any)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="user">Users</option>
+                    <option value="admin">Admins</option>
+                  </select>
+                </div>
+                <select
+                  value={filterPlan}
+                  onChange={(e) => setFilterPlan(e.target.value as any)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="all">All Plans</option>
+                  <option value="free">Free</option>
+                  <option value="pro">Pro</option>
+                  <option value="business">Business</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -415,64 +382,87 @@ const AdminDashboard: React.FC = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">User</th>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">Role</th>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">Plan</th>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">Websites</th>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">Joined</th>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">Last Sign In</th>
-                  <th className="text-left py-3 px-6 font-medium text-gray-700">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Plan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Websites
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Sign In
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredUsers.map((userData) => (
-                  <tr key={userData.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-6">
+                  <tr key={userData.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <p className="font-medium text-gray-900">{userData.full_name || 'No name'}</p>
-                        <p className="text-sm text-gray-600">{userData.email}</p>
+                        <div className="text-sm font-medium text-gray-900">
+                          {userData.full_name || 'No name'}
+                        </div>
+                        <div className="text-sm text-gray-500">{userData.email}</div>
                       </div>
                     </td>
-                    <td className="py-4 px-6">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(userData.role)}`}>
-                        {userData.role}
-                      </span>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={userData.role}
+                        onChange={(e) => updateUserRole(userData.id, e.target.value as 'user' | 'admin')}
+                        disabled={updating === `role-${userData.id}` || userData.id === user.id}
+                        className={`text-sm rounded-full px-3 py-1 font-medium border-0 focus:ring-2 focus:ring-purple-500 ${
+                          userData.role === 'admin' 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-gray-100 text-gray-800'
+                        } ${userData.id === user.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
                     </td>
-                    <td className="py-4 px-6">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${getPlanBadgeColor(userData.plan)}`}>
-                        {userData.plan}
-                      </span>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={userData.plan}
+                        onChange={(e) => updateUserPlan(userData.id, e.target.value as 'free' | 'pro' | 'business')}
+                        disabled={updating === `plan-${userData.id}`}
+                        className={`text-sm rounded-full px-3 py-1 font-medium border-0 focus:ring-2 focus:ring-purple-500 ${
+                          userData.plan === 'business' 
+                            ? 'bg-purple-100 text-purple-800'
+                            : userData.plan === 'pro'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        <option value="free">Free</option>
+                        <option value="pro">Pro</option>
+                        <option value="business">Business</option>
+                      </select>
                     </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-900">{userData.website_count}</span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {userData.website_count}
                     </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-600 text-sm">{formatDate(userData.created_at)}</span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(userData.created_at)}
                     </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-600 text-sm">{formatDate(userData.last_sign_in_at)}</span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(userData.last_sign_in_at)}
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
-                        <select
-                          value={userData.role}
-                          onChange={(e) => handleUpdateUserRole(userData.id, e.target.value as 'user' | 'admin')}
-                          disabled={actionLoading[`role-${userData.id}`]}
-                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                          <option value="user">User</option>
-                          <option value="admin">Admin</option>
-                        </select>
-                        <select
-                          value={userData.plan}
-                          onChange={(e) => handleUpdateUserPlan(userData.id, e.target.value as 'free' | 'pro' | 'business')}
-                          disabled={actionLoading[`plan-${userData.id}`]}
-                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                          <option value="free">Free</option>
-                          <option value="pro">Pro</option>
-                          <option value="business">Business</option>
-                        </select>
+                        {(updating === `role-${userData.id}` || updating === `plan-${userData.id}`) && (
+                          <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -484,8 +474,8 @@ const AdminDashboard: React.FC = () => {
           {filteredUsers.length === 0 && (
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">No users found</p>
-              <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
+              <p className="text-gray-500">Try adjusting your search or filters</p>
             </div>
           )}
         </motion.div>

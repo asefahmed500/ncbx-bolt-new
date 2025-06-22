@@ -68,14 +68,14 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                 {user?.role === 'admin' && (
                   <button
                     onClick={() => handleNavigation('admin')}
-                    className={`text-sm font-medium transition-colors flex items-center ${
+                    className={`flex items-center space-x-1 text-sm font-medium transition-colors ${
                       currentView === 'admin' 
-                        ? 'text-blue-600' 
-                        : 'text-gray-700 hover:text-blue-600'
+                        ? 'text-purple-600' 
+                        : 'text-gray-700 hover:text-purple-600'
                     }`}
                   >
-                    <Shield className="h-4 w-4 mr-1" />
-                    Admin
+                    <Shield className="h-4 w-4" />
+                    <span>Admin Panel</span>
                   </button>
                 )}
               </>
@@ -113,12 +113,18 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                       {user.name.charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <span className="hidden sm:block text-sm font-medium text-gray-700">
-                    {user.name}
-                  </span>
-                  {user.role === 'admin' && (
-                    <Shield className="h-3 w-3 text-blue-600" />
-                  )}
+                  <div className="hidden sm:block text-left">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-gray-700">
+                        {user.name}
+                      </span>
+                      {user.role === 'admin' && (
+                        <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </button>
 
                 <AnimatePresence>
@@ -127,16 +133,15 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                      className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
                     >
-                      <div className="px-4 py-2 border-b border-gray-100">
+                      <div className="px-4 py-3 border-b border-gray-100">
                         <p className="text-sm font-medium text-gray-900">{user.name}</p>
                         <p className="text-xs text-gray-500">{user.email}</p>
                         <div className="flex items-center space-x-2 mt-1">
                           <span className="text-xs text-gray-500 capitalize">{user.plan} Plan</span>
                           {user.role === 'admin' && (
-                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium flex items-center">
-                              <Shield className="h-3 w-3 mr-1" />
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-medium">
                               Admin
                             </span>
                           )}
@@ -168,19 +173,21 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                             handleNavigation('admin');
                             setShowUserMenu(false);
                           }}
-                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
                         >
                           <Shield className="h-4 w-4" />
                           <span>Admin Panel</span>
                         </button>
                       )}
-                      <button
-                        onClick={handleLogout}
-                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        <span>Sign out</span>
-                      </button>
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Sign out</span>
+                        </button>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -240,7 +247,7 @@ const Header: React.FC<HeaderProps> = ({ isMenuOpen, setIsMenuOpen }) => {
                   {user?.role === 'admin' && (
                     <button
                       onClick={() => handleNavigation('admin')}
-                      className="flex items-center w-full text-left text-base font-medium text-blue-700 hover:text-blue-800 transition-colors"
+                      className="flex items-center w-full text-left text-base font-medium text-purple-700 hover:text-purple-600 transition-colors"
                     >
                       <Shield className="h-4 w-4 mr-2" />
                       Admin Panel
