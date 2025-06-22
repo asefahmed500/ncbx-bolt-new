@@ -24,6 +24,10 @@ NCBX Website Builder is a modern, full-stack web application that allows users t
 - **Real Database**: PostgreSQL with Supabase
 - **Security**: Row Level Security (RLS)
 - **Performance**: Optimized for production use
+- **Collaboration**: Real-time editing with multiple users
+- **Versioning**: Track changes and restore previous versions
+- **Custom Domains**: Connect your own domain
+- **Payments**: Subscription plans and premium templates
 
 ---
 
@@ -33,19 +37,26 @@ NCBX Website Builder is a modern, full-stack web application that allows users t
 ```
 src/
 ├── components/          # React components
-│   ├── Auth/           # Authentication pages
-│   ├── Dashboard/      # User dashboard
-│   ├── Editor/         # Website editor
-│   ├── Landing/        # Landing page
-│   ├── Layout/         # Layout components
-│   └── Templates/      # Template gallery
-├── hooks/              # Custom React hooks
-│   ├── useAuth.ts      # Authentication logic
-│   └── useWebsites.ts  # Website CRUD operations
-├── lib/                # Utilities and configurations
-│   └── supabase.ts     # Supabase client setup
-└── store/              # State management
-    └── useAppStore.ts  # Global app state
+│   ├── Admin/           # Admin dashboard
+│   ├── Auth/            # Authentication pages
+│   ├── Billing/         # Subscription management
+│   ├── Dashboard/       # User dashboard
+│   ├── Editor/          # Website editor
+│   ├── Landing/         # Landing page
+│   ├── Layout/          # Layout components
+│   ├── Profile/         # User profile
+│   ├── Templates/       # Template gallery
+│   └── ui/              # Shadcn UI components
+├── hooks/               # Custom React hooks
+│   ├── useAuth.ts       # Authentication logic
+│   ├── useWebsites.ts   # Website CRUD operations
+│   ├── useStripe.ts     # Payment processing
+│   └── useAnalytics.ts  # Analytics tracking
+├── lib/                 # Utilities and configurations
+│   ├── supabase.ts      # Supabase client setup
+│   └── utils.ts         # Helper functions
+└── store/               # State management
+    └── useAppStore.ts   # Global app state
 ```
 
 ### Backend Architecture:
@@ -54,11 +65,21 @@ Supabase Services:
 ├── Database (PostgreSQL)
 │   ├── profiles table
 │   ├── websites table
+│   ├── website_versions table
+│   ├── website_collaborators table
+│   ├── subscriptions table
+│   ├── premium_templates table
 │   └── RLS policies
 ├── Authentication
 │   ├── Email/Password
 │   ├── Google OAuth
 │   └── JWT tokens
+├── Edge Functions
+│   ├── stripe-webhook
+│   ├── create-checkout-session
+│   ├── create-portal-session
+│   ├── purchase-template
+│   └── deploy-website
 └── Real-time (WebSockets)
     └── Live collaboration
 ```
@@ -287,6 +308,37 @@ const Dashboard: React.FC = () => {
 };
 ```
 
+### Stripe Integration
+
+```typescript
+// Subscription management
+const { createCheckoutSession, createPortalSession } = useStripe();
+
+// Create checkout session for subscription
+await createCheckoutSession(planPriceId);
+
+// Open customer portal for subscription management
+await createPortalSession();
+```
+
+### Real-time Collaboration
+
+```typescript
+// Collaboration hook
+const { 
+  activeSessions, 
+  comments, 
+  updateCursorPosition,
+  addComment 
+} = useCollaboration(websiteId);
+
+// Update cursor position
+updateCursorPosition({ x: 100, y: 200 });
+
+// Add comment
+await addComment(elementId, "This section needs work");
+```
+
 ---
 
 ## 📡 API Reference
@@ -301,6 +353,7 @@ CREATE TABLE profiles (
   full_name text,
   avatar_url text,
   plan user_plan DEFAULT 'free',
+  role user_role DEFAULT 'user',
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -322,6 +375,21 @@ CREATE TABLE websites (
 );
 ```
 
+#### Website Versions Table
+```sql
+CREATE TABLE website_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  website_id uuid REFERENCES websites(id) ON DELETE CASCADE,
+  version_number integer NOT NULL,
+  content jsonb NOT NULL DEFAULT '{}',
+  changes_summary text,
+  created_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  is_published boolean DEFAULT false,
+  published_at timestamptz
+);
+```
+
 ### Row Level Security Policies
 
 ```sql
@@ -337,15 +405,52 @@ CREATE POLICY "Users can read own websites"
   USING (auth.uid() = user_id);
 ```
 
+### Edge Functions
+
+#### Create Checkout Session
+```typescript
+// Request
+POST /functions/v1/create-checkout-session
+{
+  "priceId": "price_123",
+  "successUrl": "https://example.com/success",
+  "cancelUrl": "https://example.com/cancel",
+  "userId": "user-uuid",
+  "userEmail": "user@example.com"
+}
+
+// Response
+{
+  "url": "https://checkout.stripe.com/..."
+}
+```
+
+#### Create Portal Session
+```typescript
+// Request
+POST /functions/v1/create-portal-session
+{
+  "userId": "user-uuid",
+  "returnUrl": "https://example.com/billing"
+}
+
+// Response
+{
+  "url": "https://billing.stripe.com/..."
+}
+```
+
 ### Environment Variables
 
 ```env
 # Required
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 
-# Optional (for Google OAuth)
-# Configured in Supabase dashboard
+# Optional
+VITE_APP_URL=your_app_url
+VITE_DEFAULT_DOMAIN=your_default_domain
 ```
 
 ---
@@ -381,6 +486,20 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - Handle race conditions in profile creation
 - Use proper error handling
 - Implement retry logic
+
+#### Payment Issues
+
+**Issue**: Stripe checkout not working
+**Solution**:
+- Verify Stripe keys are correct
+- Check webhook configuration
+- Ensure products and prices exist in Stripe
+
+**Issue**: Subscription not updating
+**Solution**:
+- Check webhook events are being received
+- Verify webhook signature
+- Review database update logic
 
 #### Performance Issues
 

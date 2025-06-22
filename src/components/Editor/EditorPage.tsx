@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Monitor, Tablet, Smartphone, Eye, Save, Undo, Redo, 
   Settings, Users, Share2, ArrowLeft, CheckCircle, AlertCircle,
-  Layers, MessageSquare, Globe, Code, Zap
+  Layers, MessageSquare, Globe, Code, Zap, Rocket
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
@@ -13,6 +13,9 @@ import PropertiesPanel from './PropertiesPanel';
 import CollaborationPanel from './CollaborationPanel';
 import PublishModal from './PublishModal';
 import VersionHistoryPanel from './VersionHistoryPanel';
+import DomainSettings from './DomainSettings';
+import DeploymentPanel from './DeploymentPanel';
+import { useToast } from '../ui/use-toast';
 
 const EditorPage: React.FC = () => {
   const { 
@@ -33,10 +36,14 @@ const EditorPage: React.FC = () => {
     saveWebsiteVersion 
   } = useWebsites();
 
+  const { toast } = useToast();
+
   const [showComponentLibrary, setShowComponentLibrary] = useState(true);
   const [showPropertiesPanel, setShowPropertiesPanel] = useState(true);
   const [showCollaborationPanel, setShowCollaborationPanel] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showDomainSettings, setShowDomainSettings] = useState(false);
+  const [showDeploymentPanel, setShowDeploymentPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -104,10 +111,23 @@ const EditorPage: React.FC = () => {
       setLastSaved(new Date());
       setSaveMessage('Saved successfully');
       setHasUnsavedChanges(false);
+      
+      toast({
+        title: "Changes saved",
+        description: "Your website has been saved successfully",
+      });
+      
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
       console.error('Save failed:', error);
       setSaveMessage('Save failed');
+      
+      toast({
+        title: "Save failed",
+        description: error instanceof Error ? error.message : "Failed to save changes",
+        variant: "destructive",
+      });
+      
       setTimeout(() => setSaveMessage(''), 3000);
     } finally {
       setIsSaving(false);
@@ -133,6 +153,11 @@ const EditorPage: React.FC = () => {
           status: 'draft'
         });
         setSaveMessage('Website unpublished');
+        
+        toast({
+          title: "Website unpublished",
+          description: "Your website is now in draft mode",
+        });
       } else {
         const updatedWebsite = await publishWebsite(currentWebsite.id, customDomain);
         setCurrentWebsite({
@@ -141,6 +166,11 @@ const EditorPage: React.FC = () => {
           domain: updatedWebsite.domain
         });
         setSaveMessage('Website published successfully!');
+        
+        toast({
+          title: "Website published",
+          description: "Your website is now live",
+        });
       }
       
       setShowPublishModal(false);
@@ -148,6 +178,13 @@ const EditorPage: React.FC = () => {
     } catch (error) {
       console.error('Publish/unpublish failed:', error);
       setSaveMessage('Failed to update website status');
+      
+      toast({
+        title: "Publishing failed",
+        description: error instanceof Error ? error.message : "Failed to publish website",
+        variant: "destructive",
+      });
+      
       setTimeout(() => setSaveMessage(''), 3000);
     } finally {
       setIsPublishing(false);
@@ -323,6 +360,22 @@ const EditorPage: React.FC = () => {
           </button>
           
           <button
+            onClick={() => setShowDomainSettings(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Domain Settings"
+          >
+            <Globe className="h-4 w-4 text-gray-600" />
+          </button>
+          
+          <button
+            onClick={() => setShowDeploymentPanel(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Deploy Website"
+          >
+            <Rocket className="h-4 w-4 text-gray-600" />
+          </button>
+          
+          <button
             onClick={togglePreviewMode}
             className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors ${
               isPreviewMode
@@ -416,8 +469,6 @@ const EditorPage: React.FC = () => {
           <Canvas 
             editorMode={editorMode}
             isPreviewMode={isPreviewMode}
-            websiteId={currentWebsite.id}
-            onContentChange={handleContentChange}
           />
         </motion.div>
 
@@ -488,6 +539,22 @@ const EditorPage: React.FC = () => {
           onClose={() => setShowPublishModal(false)}
           onPublish={handlePublish}
           isPublishing={isPublishing}
+        />
+      )}
+
+      {/* Domain Settings Modal */}
+      {showDomainSettings && (
+        <DomainSettings
+          website={currentWebsite}
+          onClose={() => setShowDomainSettings(false)}
+        />
+      )}
+
+      {/* Deployment Panel */}
+      {showDeploymentPanel && (
+        <DeploymentPanel
+          websiteId={currentWebsite.id}
+          onClose={() => setShowDeploymentPanel(false)}
         />
       )}
 

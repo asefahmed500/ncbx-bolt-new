@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { useAppStore } from '../../store/useAppStore';
-import { Trash2, Copy, Move, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import { Trash2, Copy, Move, Eye, EyeOff, Lock, Unlock, Plus, Settings } from 'lucide-react';
+import { useToast } from '../ui/use-toast';
 
 interface Component {
   id: string;
@@ -19,11 +19,15 @@ interface Component {
 interface CanvasProps {
   editorMode: 'desktop' | 'tablet' | 'mobile';
   isPreviewMode: boolean;
+  onContentChange?: (content: any) => void;
 }
 
-const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
+const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode, onContentChange }) => {
   const { selectedComponent, setSelectedComponent } = useAppStore();
-  const [components, setComponents] = React.useState<Component[]>([
+  const { toast } = useToast();
+  const canvasRef = useRef<HTMLDivElement>(null);
+  
+  const [components, setComponents] = useState<Component[]>([
     {
       id: '1',
       type: 'text',
@@ -80,10 +84,19 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     }
   ]);
 
-  const [draggedComponent, setDraggedComponent] = React.useState<string | null>(null);
-  const [isResizing, setIsResizing] = React.useState<string | null>(null);
-  const [history, setHistory] = React.useState<Component[][]>([components]);
-  const [historyIndex, setHistoryIndex] = React.useState(0);
+  const [draggedComponent, setDraggedComponent] = useState<string | null>(null);
+  const [isResizing, setIsResizing] = useState<string | null>(null);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
+  const [startSize, setStartSize] = useState({ width: 0, height: 0 });
+  const [history, setHistory] = useState<Component[][]>([components]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [contextMenuComponentId, setContextMenuComponentId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
 
   const canvasWidth = {
     desktop: '100%',
@@ -96,6 +109,19 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     tablet: '1024px',
     mobile: '800px'
   };
+
+  // Notify parent of content changes
+  useEffect(() => {
+    if (onContentChange) {
+      onContentChange({
+        components,
+        settings: {
+          theme: 'light',
+          layout: 'standard'
+        }
+      });
+    }
+  }, [components, onContentChange]);
 
   // Save to history for undo/redo
   const saveToHistory = (newComponents: Component[]) => {
@@ -110,6 +136,11 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     if (historyIndex > 0) {
       setHistoryIndex(historyIndex - 1);
       setComponents([...history[historyIndex - 1]]);
+      
+      toast({
+        title: "Undo",
+        description: "Previous action undone",
+      });
     }
   };
 
@@ -118,12 +149,19 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     if (historyIndex < history.length - 1) {
       setHistoryIndex(historyIndex + 1);
       setComponents([...history[historyIndex + 1]]);
+      
+      toast({
+        title: "Redo",
+        description: "Action redone",
+      });
     }
   };
 
   // Keyboard shortcuts
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditing) return; // Don't handle shortcuts while editing text
+      
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
           case 'z':
@@ -154,6 +192,13 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
               handleDuplicateComponent(selectedComponent);
             }
             break;
+          case 's':
+            e.preventDefault();
+            toast({
+              title: "Save shortcut detected",
+              description: "Your changes will be saved",
+            });
+            break;
         }
       }
       
@@ -161,11 +206,41 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
         e.preventDefault();
         handleDeleteComponent(selectedComponent);
       }
+      
+      if (e.key === 'Escape') {
+        if (isEditing) {
+          setIsEditing(null);
+        } else if (showContextMenu) {
+          setShowContextMenu(false);
+        } else {
+          setSelectedComponent(null);
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedComponent, historyIndex, history]);
+  }, [selectedComponent, historyIndex, history, isEditing, showContextMenu]);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (showContextMenu) {
+        setShowContextMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showContextMenu]);
+
+  // Focus edit field when editing starts
+  useEffect(() => {
+    if (isEditing && editRef.current) {
+      editRef.current.focus();
+      editRef.current.select();
+    }
+  }, [isEditing]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -192,6 +267,11 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
       setComponents(newComponents);
       saveToHistory(newComponents);
       setSelectedComponent(newComponent.id);
+      
+      toast({
+        title: "Component added",
+        description: `Added ${component.name} component`,
+      });
     }
   };
 
@@ -284,11 +364,149 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     if (!isPreviewMode) {
       // Enter text editing mode for text components
       const component = components.find(c => c.id === componentId);
-      if (component && (component.type === 'text' || component.type === 'heading')) {
-        // This would trigger inline text editing
-        console.log('Enter text editing mode for:', componentId);
+      if (component && (component.type === 'text' || component.type === 'heading' || component.type === 'button')) {
+        setIsEditing(componentId);
+        setEditContent(component.content);
       }
     }
+  };
+
+  const handleComponentContextMenu = (componentId: string, e: React.MouseEvent) => {
+    if (isPreviewMode) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setContextMenuComponentId(componentId);
+    setShowContextMenu(true);
+  };
+
+  const handleComponentDragStart = (componentId: string, e: React.MouseEvent) => {
+    if (isPreviewMode) return;
+    
+    const component = components.find(c => c.id === componentId);
+    if (!component || component.locked) return;
+    
+    setDraggedComponent(componentId);
+    setStartPoint({ x: e.clientX, y: e.clientY });
+    
+    document.addEventListener('mousemove', handleComponentDragMove);
+    document.addEventListener('mouseup', handleComponentDragEnd);
+  };
+
+  const handleComponentDragMove = (e: MouseEvent) => {
+    if (!draggedComponent) return;
+    
+    const component = components.find(c => c.id === draggedComponent);
+    if (!component) return;
+    
+    const deltaX = e.clientX - startPoint.x;
+    const deltaY = e.clientY - startPoint.y;
+    
+    const newComponents = components.map(c => 
+      c.id === draggedComponent 
+        ? { 
+            ...c, 
+            position: { 
+              x: Math.max(0, c.position.x + deltaX), 
+              y: Math.max(0, c.position.y + deltaY) 
+            } 
+          } 
+        : c
+    );
+    
+    setComponents(newComponents);
+    setStartPoint({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleComponentDragEnd = () => {
+    if (draggedComponent) {
+      saveToHistory(components);
+      setDraggedComponent(null);
+    }
+    
+    document.removeEventListener('mousemove', handleComponentDragMove);
+    document.removeEventListener('mouseup', handleComponentDragEnd);
+  };
+
+  const handleResizeStart = (componentId: string, direction: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isPreviewMode) return;
+    
+    const component = components.find(c => c.id === componentId);
+    if (!component || component.locked) return;
+    
+    setIsResizing(componentId);
+    setResizeDirection(direction);
+    setStartPoint({ x: e.clientX, y: e.clientY });
+    setStartSize({ width: component.size.width, height: component.size.height });
+    
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isResizing || !resizeDirection) return;
+    
+    const component = components.find(c => c.id === isResizing);
+    if (!component) return;
+    
+    const deltaX = e.clientX - startPoint.x;
+    const deltaY = e.clientY - startPoint.y;
+    
+    let newWidth = startSize.width;
+    let newHeight = startSize.height;
+    
+    if (resizeDirection.includes('e')) {
+      newWidth = Math.max(50, startSize.width + deltaX);
+    } else if (resizeDirection.includes('w')) {
+      newWidth = Math.max(50, startSize.width - deltaX);
+    }
+    
+    if (resizeDirection.includes('s')) {
+      newHeight = Math.max(20, startSize.height + deltaY);
+    } else if (resizeDirection.includes('n')) {
+      newHeight = Math.max(20, startSize.height - deltaY);
+    }
+    
+    const newComponents = components.map(c => 
+      c.id === isResizing 
+        ? { ...c, size: { width: newWidth, height: newHeight } } 
+        : c
+    );
+    
+    setComponents(newComponents);
+  };
+
+  const handleResizeEnd = () => {
+    if (isResizing) {
+      saveToHistory(components);
+      setIsResizing(null);
+      setResizeDirection(null);
+    }
+    
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  };
+
+  const handleEditComplete = () => {
+    if (!isEditing) return;
+    
+    const newComponents = components.map(c => 
+      c.id === isEditing 
+        ? { ...c, content: editContent } 
+        : c
+    );
+    
+    setComponents(newComponents);
+    saveToHistory(newComponents);
+    setIsEditing(null);
+    
+    toast({
+      title: "Content updated",
+      description: "Text content has been updated",
+    });
   };
 
   const handleDeleteComponent = (componentId: string) => {
@@ -298,12 +516,22 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     if (selectedComponent === componentId) {
       setSelectedComponent(null);
     }
+    
+    toast({
+      title: "Component deleted",
+      description: "Component has been removed",
+    });
   };
 
   const handleCopyComponent = (componentId: string) => {
     const component = components.find(c => c.id === componentId);
     if (component) {
       localStorage.setItem('copiedComponent', JSON.stringify(component));
+      
+      toast({
+        title: "Component copied",
+        description: "Component copied to clipboard",
+      });
     }
   };
 
@@ -325,6 +553,11 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
       setComponents(newComponents);
       saveToHistory(newComponents);
       setSelectedComponent(newComponent.id);
+      
+      toast({
+        title: "Component pasted",
+        description: "Component has been pasted",
+      });
     }
   };
 
@@ -345,6 +578,11 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
       setComponents(newComponents);
       saveToHistory(newComponents);
       setSelectedComponent(newComponent.id);
+      
+      toast({
+        title: "Component duplicated",
+        description: "Component has been duplicated",
+      });
     }
   };
 
@@ -354,6 +592,12 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     );
     setComponents(newComponents);
     saveToHistory(newComponents);
+    
+    const component = components.find(c => c.id === componentId);
+    toast({
+      title: component?.hidden ? "Component shown" : "Component hidden",
+      description: component?.hidden ? "Component is now visible" : "Component is now hidden",
+    });
   };
 
   const handleToggleLock = (componentId: string) => {
@@ -362,6 +606,12 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     );
     setComponents(newComponents);
     saveToHistory(newComponents);
+    
+    const component = components.find(c => c.id === componentId);
+    toast({
+      title: component?.locked ? "Component unlocked" : "Component locked",
+      description: component?.locked ? "Component can now be moved" : "Component is now locked",
+    });
   };
 
   const handleLayerChange = (componentId: string, direction: 'up' | 'down') => {
@@ -378,6 +628,11 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
 
     setComponents(newComponents);
     saveToHistory(newComponents);
+    
+    toast({
+      title: "Layer changed",
+      description: `Component moved ${direction === 'up' ? 'forward' : 'backward'}`,
+    });
   };
 
   const renderComponent = (component: Component) => {
@@ -394,7 +649,7 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
       width: component.size.width,
       height: component.size.height,
       zIndex: component.layer,
-      cursor: isPreviewMode ? 'default' : (component.locked ? 'not-allowed' : 'pointer'),
+      cursor: isPreviewMode ? 'default' : (component.locked ? 'not-allowed' : 'move'),
       opacity: component.hidden ? 0.3 : 1,
       ...component.styles
     };
@@ -410,7 +665,29 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
     switch (component.type) {
       case 'text':
       case 'heading':
-        content = (
+        content = isEditing === component.id ? (
+          <textarea
+            ref={editRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onBlur={handleEditComplete}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.shiftKey === false) {
+                e.preventDefault();
+                handleEditComplete();
+              }
+            }}
+            style={{
+              ...baseStyles,
+              resize: 'none',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontFamily: 'inherit',
+              overflow: 'auto'
+            }}
+          />
+        ) : (
           <div style={baseStyles}>
             {component.content}
           </div>
@@ -418,7 +695,32 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
         break;
       
       case 'button':
-        content = (
+        content = isEditing === component.id ? (
+          <textarea
+            ref={editRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onBlur={handleEditComplete}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleEditComplete();
+              }
+            }}
+            style={{
+              ...baseStyles,
+              resize: 'none',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontFamily: 'inherit',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          />
+        ) : (
           <button style={baseStyles} disabled={!isPreviewMode}>
             {component.content}
           </button>
@@ -461,6 +763,8 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
         style={wrapperStyles}
         onClick={(e) => handleComponentClick(component.id, e)}
         onDoubleClick={(e) => handleComponentDoubleClick(component.id, e)}
+        onContextMenu={(e) => handleComponentContextMenu(component.id, e)}
+        onMouseDown={(e) => !component.locked && handleComponentDragStart(component.id, e)}
       >
         {content}
         
@@ -513,10 +817,22 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
         {/* Resize Handles */}
         {isSelected && !isPreviewMode && !component.locked && (
           <>
-            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-600 border border-white cursor-se-resize"></div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 border border-white cursor-ne-resize"></div>
-            <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-600 border border-white cursor-sw-resize"></div>
-            <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-600 border border-white cursor-nw-resize"></div>
+            <div 
+              className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-600 border border-white cursor-se-resize"
+              onMouseDown={(e) => handleResizeStart(component.id, 'se', e)}
+            ></div>
+            <div 
+              className="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 border border-white cursor-ne-resize"
+              onMouseDown={(e) => handleResizeStart(component.id, 'ne', e)}
+            ></div>
+            <div 
+              className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-600 border border-white cursor-sw-resize"
+              onMouseDown={(e) => handleResizeStart(component.id, 'sw', e)}
+            ></div>
+            <div 
+              className="absolute -top-1 -left-1 w-3 h-3 bg-blue-600 border border-white cursor-nw-resize"
+              onMouseDown={(e) => handleResizeStart(component.id, 'nw', e)}
+            ></div>
           </>
         )}
       </div>
@@ -543,6 +859,7 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => !isPreviewMode && setSelectedComponent(null)}
+          ref={canvasRef}
         >
           {/* Canvas Content */}
           <div className="relative w-full h-full">
@@ -586,6 +903,109 @@ const Canvas: React.FC<CanvasProps> = ({ editorMode, isPreviewMode }) => {
               <div className="bg-gray-800 text-white px-3 py-1 rounded-full text-sm">
                 {editorMode.charAt(0).toUpperCase() + editorMode.slice(1)} Preview
               </div>
+            </div>
+          )}
+
+          {/* Context Menu */}
+          {showContextMenu && contextMenuComponentId && (
+            <div 
+              className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+              style={{ 
+                left: contextMenuPosition.x, 
+                top: contextMenuPosition.y,
+                minWidth: '180px'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                onClick={() => {
+                  handleCopyComponent(contextMenuComponentId);
+                  setShowContextMenu(false);
+                }}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
+              </button>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                onClick={() => {
+                  handleDuplicateComponent(contextMenuComponentId);
+                  setShowContextMenu(false);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Duplicate
+              </button>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                onClick={() => {
+                  handleToggleLock(contextMenuComponentId);
+                  setShowContextMenu(false);
+                }}
+              >
+                {components.find(c => c.id === contextMenuComponentId)?.locked ? (
+                  <>
+                    <Unlock className="h-4 w-4 mr-2" />
+                    Unlock
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4 mr-2" />
+                    Lock
+                  </>
+                )}
+              </button>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                onClick={() => {
+                  handleToggleVisibility(contextMenuComponentId);
+                  setShowContextMenu(false);
+                }}
+              >
+                {components.find(c => c.id === contextMenuComponentId)?.hidden ? (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Show
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Hide
+                  </>
+                )}
+              </button>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                onClick={() => {
+                  handleLayerChange(contextMenuComponentId, 'up');
+                  setShowContextMenu(false);
+                }}
+              >
+                <Move className="h-4 w-4 mr-2" />
+                Bring Forward
+              </button>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                onClick={() => {
+                  handleLayerChange(contextMenuComponentId, 'down');
+                  setShowContextMenu(false);
+                }}
+              >
+                <Move className="h-4 w-4 mr-2" />
+                Send Backward
+              </button>
+              <div className="border-t border-gray-200 my-1"></div>
+              <button 
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                onClick={() => {
+                  handleDeleteComponent(contextMenuComponentId);
+                  setShowContextMenu(false);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </button>
             </div>
           )}
         </motion.div>

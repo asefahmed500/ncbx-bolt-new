@@ -6,6 +6,7 @@ This guide will walk you through setting up the NCBX Website Builder from scratc
 
 - Node.js 18+ installed
 - A Supabase account
+- A Stripe account (for payment features)
 - Git installed
 - Code editor (VS Code recommended)
 
@@ -49,7 +50,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 #### Run Migration
 1. Go to your Supabase dashboard
 2. Click **SQL Editor**
-3. Copy the contents of `supabase/migrations/20250622192335_withered_mode.sql`
+3. Copy the contents of each migration file in `supabase/migrations/` (in order)
 4. Paste into the SQL editor
 5. Click **Run** to execute
 
@@ -57,14 +58,72 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 Check that these tables exist:
 - `profiles`
 - `websites`
-- `auth.users` (built-in)
+- `website_versions`
+- `website_collaborators`
+- `subscriptions`
+- `premium_templates`
+- `template_purchases`
+- `website_analytics`
 
-### 4. Authentication Setup
+### 4. Stripe Integration
+
+#### Create Stripe Account
+1. Go to [stripe.com](https://stripe.com) and sign up
+2. Switch to test mode for development
+
+#### Configure Stripe Products
+1. Follow the instructions in `README_STRIPE_SETUP.md`
+2. Create subscription plans and premium templates
+3. Get your Stripe publishable key
+4. Update your `.env` file:
+
+```env
+VITE_STRIPE_PUBLISHABLE_KEY=your-stripe-publishable-key
+```
+
+#### Set Up Webhooks
+1. In Stripe Dashboard, go to **Developers** → **Webhooks**
+2. Add endpoint: `https://your-project-id.supabase.co/functions/v1/stripe-webhook`
+3. Select events:
+   - `checkout.session.completed`
+   - `customer.subscription.created`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+   - `invoice.paid`
+   - `invoice.payment_failed`
+4. Get the webhook signing secret
+5. Add it to your Supabase Edge Function environment variables
+
+### 5. Supabase Edge Functions
+
+#### Deploy Edge Functions
+1. Install Supabase CLI
+2. Login to Supabase CLI
+3. Link your project
+4. Deploy functions:
+
+```bash
+supabase functions deploy stripe-webhook
+supabase functions deploy create-checkout-session
+supabase functions deploy create-portal-session
+supabase functions deploy purchase-template
+supabase functions deploy deploy-website
+```
+
+#### Set Environment Variables
+In Supabase Dashboard:
+1. Go to **Settings** → **API**
+2. Scroll to **Edge Functions**
+3. Add environment variables:
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+
+### 6. Authentication Setup
 
 #### Enable Email Authentication
 1. Go to **Authentication** → **Settings**
-2. Ensure **Enable email confirmations** is OFF (for development)
-3. Set **Site URL** to `http://localhost:5173`
+2. Configure **Site URL** to `http://localhost:5173` (for development)
+3. Choose whether to enable email confirmations
 
 #### Setup Google OAuth (Optional)
 
@@ -84,7 +143,7 @@ Check that these tables exist:
 3. Enter your Google **Client ID** and **Client Secret**
 4. Save configuration
 
-### 5. Development Server
+### 7. Development Server
 
 ```bash
 # Start development server
@@ -93,31 +152,33 @@ npm run dev
 # Open browser to http://localhost:5173
 ```
 
-### 6. Test Authentication
+### 8. Production Deployment
 
-#### Test Email Signup
-1. Click "Get Started"
-2. Switch to "Sign up"
-3. Enter test email and password
-4. Should create account and redirect to dashboard
+#### Environment Setup
+```env
+# Production environment variables
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-production-anon-key
+VITE_STRIPE_PUBLISHABLE_KEY=your-production-stripe-key
+VITE_APP_URL=https://your-production-domain.com
+VITE_DEFAULT_DOMAIN=ncbx.app
+```
 
-#### Test Google OAuth
-1. Click "Continue with Google"
-2. Complete Google authentication
-3. Should create profile and redirect to dashboard
+#### Build and Deploy
+```bash
+# Build for production
+npm run build
 
-### 7. Verify Database Integration
+# Deploy to your hosting provider
+# (Netlify, Vercel, etc.)
+```
 
-#### Check Profile Creation
-1. Go to Supabase dashboard
-2. Click **Table Editor** → **profiles**
-3. Should see your test user profile
+### 9. Post-Deployment Tasks
 
-#### Test Website Creation
-1. In the app, click "Create Website"
-2. Choose a template
-3. Should redirect to editor
-4. Check **websites** table in Supabase
+1. Update Site URL in Supabase Authentication settings
+2. Update Google OAuth redirect URLs (if using)
+3. Update Stripe webhook endpoints to production URLs
+4. Test the complete user flow in production
 
 ## 🔍 Troubleshooting
 
@@ -138,10 +199,10 @@ npm run dev
 - Ensure Google OAuth is enabled in Supabase
 - Verify Google Cloud Console configuration
 
-#### Database connection errors
-- Check Supabase project status
-- Verify network connectivity
-- Check browser console for specific errors
+#### Stripe integration issues
+- Verify Stripe keys are correct
+- Check webhook configuration
+- Ensure products and prices are set up correctly
 
 ### Verification Checklist
 
@@ -151,37 +212,13 @@ npm run dev
 - [ ] RLS policies enabled
 - [ ] Email authentication working
 - [ ] Google OAuth configured (optional)
+- [ ] Stripe integration working
+- [ ] Edge functions deployed
 - [ ] Development server running
 - [ ] Can create user account
 - [ ] Can create website
-- [ ] Dashboard shows user data
-
-## 🚀 Production Deployment
-
-### Environment Setup
-```env
-# Production environment variables
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-production-anon-key
-```
-
-### Build and Deploy
-```bash
-# Build for production
-npm run build
-
-# Deploy to your hosting provider
-# (Netlify, Vercel, etc.)
-```
-
-### Production Checklist
-- [ ] Environment variables updated for production
-- [ ] Database migration run on production
-- [ ] Google OAuth redirect URLs updated
-- [ ] Site URL updated in Supabase
-- [ ] SSL certificate configured
-- [ ] Domain configured
-- [ ] Performance testing completed
+- [ ] Can publish website
+- [ ] Can process payments
 
 ## 📞 Need Help?
 

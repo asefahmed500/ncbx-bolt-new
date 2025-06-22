@@ -8,16 +8,21 @@ A modern, production-ready website builder with real Supabase authentication, dr
 - **Drag & Drop Editor**: Intuitive website building interface
 - **Template Gallery**: Professional templates for different industries
 - **Responsive Design**: Mobile-first approach with device previews
-- **Real-time Collaboration**: Built for team editing (UI ready)
+- **Real-time Collaboration**: Built for team editing
 - **Database Integration**: PostgreSQL with Row Level Security
+- **Stripe Integration**: Subscription plans and premium templates
+- **Custom Domains**: Connect your own domain to your website
+- **Version History**: Track changes and restore previous versions
+- **Analytics**: Track website performance and visitor data
 
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 18 + TypeScript + Vite
-- **Backend**: Supabase (Database, Auth, Real-time)
-- **Styling**: Tailwind CSS
-- **Animations**: Framer Motion
+- **UI Components**: Shadcn UI + Tailwind CSS
+- **Backend**: Supabase (Database, Auth, Storage, Edge Functions)
 - **State Management**: Zustand
+- **Payments**: Stripe
+- **Animations**: Framer Motion
 - **Icons**: Lucide React
 
 ## 📋 Quick Start
@@ -34,13 +39,19 @@ Create a `.env` file:
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+VITE_APP_URL=http://localhost:5173
+VITE_DEFAULT_DOMAIN=ncbx.app
 ```
 
 ### 3. Database Setup
-- Copy the migration from `supabase/migrations/` folder
-- Run it in your Supabase SQL Editor
+- Copy the migrations from `supabase/migrations/` folder
+- Run them in your Supabase SQL Editor
 
-### 4. Run Development Server
+### 4. Stripe Setup
+Follow the instructions in `README_STRIPE_SETUP.md` to configure Stripe products and webhooks.
+
+### 5. Run Development Server
 ```bash
 npm run dev
 ```
@@ -62,13 +73,18 @@ npm run dev
 
 ## 📊 Database Schema
 
-### Tables:
+### Main Tables:
 - **profiles**: User information, plans, preferences
 - **websites**: Website data, status, templates
-- **auth.users**: Supabase authentication (built-in)
+- **website_versions**: Version control for website content
+- **website_collaborators**: Collaboration permissions
+- **subscriptions**: User subscription data
+- **premium_templates**: Premium template information
+- **template_purchases**: Template purchase records
+- **website_analytics**: Website performance data
 
 ### Security:
-- Row Level Security (RLS) enabled
+- Row Level Security (RLS) enabled on all tables
 - Users can only access their own data
 - JWT-based authentication
 
@@ -90,11 +106,48 @@ npm run lint
 
 ## 🚀 Deployment
 
-Ready for deployment to:
+The application is ready for deployment to:
 - Netlify
 - Vercel
 - Any static hosting provider
 
+## 🔒 Authentication
+
+The application uses Supabase Authentication with:
+- Email/Password signup with optional verification
+- Google OAuth integration
+- JWT token management
+- Secure password reset flow
+
+## 💳 Subscription Plans
+
+| Plan | Monthly | Yearly | Features |
+|------|---------|--------|----------|
+| Free | $0 | $0 | 1 website, basic templates, subdomain hosting |
+| Pro | $12/month | $120/year | Unlimited websites, premium templates, custom domains |
+| Business | $39/month | $390/year | Everything in Pro + white-label, API access, 24/7 support |
+
+## 🧩 Premium Templates
+
+Premium templates are available for purchase individually or included with Pro/Business plans.
+
+## 🌐 Custom Domains
+
+Users can connect custom domains to their websites:
+1. Enter domain in the domain settings
+2. Configure DNS records (A and CNAME)
+3. Wait for DNS propagation
+4. SSL certificate is automatically provisioned
+
 ## 📝 License
 
 MIT License - see LICENSE file for details.
+
+## 🙏 Acknowledgements
+
+- [Supabase](https://supabase.com) for backend services
+- [Shadcn UI](https://ui.shadcn.com) for UI components
+- [Tailwind CSS](https://tailwindcss.com) for styling
+- [Framer Motion](https://www.framer.com/motion/) for animations
+- [Lucide Icons](https://lucide.dev) for beautiful icons
+- [Stripe](https://stripe.com) for payment processing

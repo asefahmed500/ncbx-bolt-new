@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Globe, AlertCircle, CheckCircle, Copy, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useDomains } from '../../hooks/useDomains';
+import { useToast } from '../ui/use-toast';
 
 interface PublishModalProps {
   website: {
@@ -20,12 +22,17 @@ const PublishModal: React.FC<PublishModalProps> = ({
   onPublish,
   isPublishing
 }) => {
+  const { connectCustomDomain, loading: domainLoading } = useDomains();
+  const { toast } = useToast();
+  
   const [customDomain, setCustomDomain] = useState(website.domain || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [publishOption, setPublishOption] = useState<'subdomain' | 'custom'>(
     website.domain && !website.domain.includes('.ncbx.app') ? 'custom' : 'subdomain'
   );
+  const [domainInstructions, setDomainInstructions] = useState<any>(null);
+  const [showDomainInstructions, setShowDomainInstructions] = useState(false);
 
   const validateDomain = () => {
     if (publishOption === 'custom' && customDomain) {
@@ -40,9 +47,30 @@ const PublishModal: React.FC<PublishModalProps> = ({
     return true;
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!validateDomain()) return;
     
+    if (publishOption === 'custom' && customDomain) {
+      // Connect domain first
+      const domainResult = await connectCustomDomain(website.id, customDomain);
+      
+      if (!domainResult.success) {
+        setErrors({ domain: domainResult.error || 'Failed to connect domain' });
+        toast({
+          title: "Domain connection failed",
+          description: domainResult.error,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (domainResult.data?.domainInstructions) {
+        setDomainInstructions(domainResult.data.domainInstructions);
+        setShowDomainInstructions(true);
+      }
+    }
+    
+    // Publish the website
     const domain = publishOption === 'custom' ? customDomain : undefined;
     onPublish(domain);
   };
@@ -51,6 +79,14 @@ const PublishModal: React.FC<PublishModalProps> = ({
     const websiteName = website.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const websiteId = website.id.substring(0, 8);
     return `${websiteName}-${websiteId}.ncbx.app`;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied to clipboard",
+      description: "Text copied successfully",
+    });
   };
 
   return (
@@ -90,7 +126,7 @@ const PublishModal: React.FC<PublishModalProps> = ({
                   <span className="text-sm font-medium text-gray-700">Website URL</span>
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => navigator.clipboard.writeText(website.domain || getDefaultSubdomain())}
+                      onClick={() => copyToClipboard(`https://${website.domain || getDefaultSubdomain()}`)}
                       className="p-1 hover:bg-gray-200 rounded"
                       title="Copy URL"
                     >
@@ -254,6 +290,65 @@ const PublishModal: React.FC<PublishModalProps> = ({
             </div>
           )}
 
+          {/* Domain Setup Instructions */}
+          {showDomainInstructions && domainInstructions && (
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Domain Setup Instructions</h4>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h5 className="text-sm font-medium text-blue-800 mb-3">
+                  Follow these steps to connect your domain:
+                </h5>
+                
+                <ol className="space-y-2 text-sm text-blue-700 list-decimal pl-5 mb-4">
+                  {domainInstructions.instructions.steps.map((step: string, index: number) => (
+                    <li key={index}>{step}</li>
+                  ))}
+                </ol>
+                
+                <div className="bg-white p-3 rounded-lg mb-3">
+                  <h6 className="text-xs font-medium text-gray-700 mb-2">DNS Records</h6>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-gray-600">Type</th>
+                          <th className="px-3 py-2 text-left text-gray-600">Name</th>
+                          <th className="px-3 py-2 text-left text-gray-600">Value</th>
+                          <th className="px-3 py-2 text-left text-gray-600">TTL</th>
+                          <th className="px-3 py-2 text-left text-gray-600"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {domainInstructions.dnsRecords.map((record: any, index: number) => (
+                          <tr key={index} className="border-t border-gray-100">
+                            <td className="px-3 py-2 font-medium">{record.type}</td>
+                            <td className="px-3 py-2">{record.name}</td>
+                            <td className="px-3 py-2 font-mono">{record.value}</td>
+                            <td className="px-3 py-2">{record.ttl}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={() => copyToClipboard(record.value)}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Copy value"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                <div className="text-xs text-blue-600">
+                  <AlertCircle className="h-3 w-3 inline mr-1" />
+                  DNS changes can take up to 48 hours to propagate globally.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex space-x-3">
             <button
               onClick={onClose}
@@ -265,10 +360,10 @@ const PublishModal: React.FC<PublishModalProps> = ({
             {website.status !== 'published' && (
               <button
                 onClick={handlePublish}
-                disabled={isPublishing}
+                disabled={isPublishing || domainLoading}
                 className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
               >
-                {isPublishing ? (
+                {isPublishing || domainLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                 ) : (
                   <>
