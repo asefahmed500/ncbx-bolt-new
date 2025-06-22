@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import TemplatesPage from './components/Templates/TemplatesPage';
 import EditorPage from './components/Editor/EditorPage';
 import AdminDashboard from './components/Admin/AdminDashboard';
+import MadeWithBolt from './components/MadeWithBolt';
 
 function App() {
   const { currentView } = useAppStore();
@@ -73,6 +74,7 @@ function App() {
         <Header isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
       )}
       {renderCurrentView()}
+      <MadeWithBolt />
     </div>
   );
 }

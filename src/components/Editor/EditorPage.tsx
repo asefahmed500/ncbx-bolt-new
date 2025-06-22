@@ -16,6 +16,7 @@ import VersionHistoryPanel from './VersionHistoryPanel';
 import DomainSettings from './DomainSettings';
 import DeploymentPanel from './DeploymentPanel';
 import { useToast } from '../ui/use-toast';
+import MadeWithBolt from '../MadeWithBolt';
 
 const EditorPage: React.FC = () => {
   const { 
@@ -469,6 +470,7 @@ const EditorPage: React.FC = () => {
           <Canvas 
             editorMode={editorMode}
             isPreviewMode={isPreviewMode}
+            onContentChange={handleContentChange}
           />
         </motion.div>
 
@@ -567,6 +569,8 @@ const EditorPage: React.FC = () => {
           <div>P: Preview</div>
         </div>
       </div>
+
+      {/* Made with Bolt button is added in the App component */}
     </div>
   );
 };
