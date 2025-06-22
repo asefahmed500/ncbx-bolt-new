@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, Star, Eye, ArrowRight, Zap } from 'lucide-react';
+import { Search, Filter, Star, Eye, ArrowRight, Zap, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
@@ -14,24 +14,38 @@ interface Template {
   downloads: number;
   isPremium: boolean;
   tags: string[];
+  features: string[];
 }
 
 const TemplatesPage: React.FC = () => {
-  const { setCurrentWebsite, setCurrentView } = useAppStore();
+  const { user, setCurrentWebsite, setCurrentView } = useAppStore();
   const { createWebsite } = useWebsites();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('popular');
-  const [isCreating, setIsCreating] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = React.useState<Template | null>(null);
+  const [websiteData, setWebsiteData] = React.useState({
+    name: '',
+    description: ''
+  });
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+
+  // Redirect to auth if not logged in
+  React.useEffect(() => {
+    if (!user) {
+      setCurrentView('auth');
+    }
+  }, [user, setCurrentView]);
 
   const categories = [
-    { id: 'all', name: 'All Templates', count: 48 },
-    { id: 'business', name: 'Business', count: 12 },
-    { id: 'portfolio', name: 'Portfolio', count: 8 },
-    { id: 'ecommerce', name: 'E-commerce', count: 10 },
-    { id: 'blog', name: 'Blog', count: 6 },
-    { id: 'restaurant', name: 'Restaurant', count: 5 },
-    { id: 'creative', name: 'Creative', count: 7 }
+    { id: 'all', name: 'All Templates', count: 24 },
+    { id: 'business', name: 'Business', count: 8 },
+    { id: 'portfolio', name: 'Portfolio', count: 6 },
+    { id: 'ecommerce', name: 'E-commerce', count: 4 },
+    { id: 'blog', name: 'Blog', count: 3 },
+    { id: 'restaurant', name: 'Restaurant', count: 2 },
+    { id: 'creative', name: 'Creative', count: 1 }
   ];
 
   const templates: Template[] = [
@@ -39,89 +53,97 @@ const TemplatesPage: React.FC = () => {
       id: '1',
       name: 'Modern Business',
       category: 'business',
-      description: 'Clean and professional template perfect for modern businesses',
+      description: 'Clean and professional template perfect for modern businesses and startups',
       preview: 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.9,
       downloads: 1245,
       isPremium: false,
-      tags: ['responsive', 'modern', 'clean']
+      tags: ['responsive', 'modern', 'clean'],
+      features: ['Contact forms', 'Service sections', 'Team showcase', 'Testimonials']
     },
     {
       id: '2',
       name: 'Creative Portfolio',
       category: 'portfolio',
-      description: 'Showcase your work with this stunning portfolio template',
+      description: 'Showcase your work with this stunning portfolio template designed for creatives',
       preview: 'https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.8,
       downloads: 987,
       isPremium: true,
-      tags: ['creative', 'portfolio', 'animated']
+      tags: ['creative', 'portfolio', 'animated'],
+      features: ['Project galleries', 'About section', 'Skills showcase', 'Contact form']
     },
     {
       id: '3',
       name: 'E-commerce Pro',
       category: 'ecommerce',
-      description: 'Complete online store solution with shopping cart',
+      description: 'Complete online store solution with shopping cart and payment integration',
       preview: 'https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.7,
       downloads: 2156,
       isPremium: true,
-      tags: ['ecommerce', 'shop', 'product']
+      tags: ['ecommerce', 'shop', 'product'],
+      features: ['Product catalog', 'Shopping cart', 'Checkout process', 'User accounts']
     },
     {
       id: '4',
       name: 'Restaurant Deluxe',
       category: 'restaurant',
-      description: 'Elegant template for restaurants and food businesses',
+      description: 'Elegant template for restaurants and food businesses with menu showcase',
       preview: 'https://images.pexels.com/photos/958546/pexels-photo-958546.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.6,
       downloads: 654,
       isPremium: false,
-      tags: ['restaurant', 'food', 'elegant']
+      tags: ['restaurant', 'food', 'elegant'],
+      features: ['Menu display', 'Reservation system', 'Gallery', 'Location map']
     },
     {
       id: '5',
       name: 'Startup Landing',
       category: 'business',
-      description: 'High-converting landing page for startups',
+      description: 'High-converting landing page template designed for startups and SaaS',
       preview: 'https://images.pexels.com/photos/3183153/pexels-photo-3183153.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.9,
       downloads: 1876,
       isPremium: true,
-      tags: ['startup', 'landing', 'conversion']
+      tags: ['startup', 'landing', 'conversion'],
+      features: ['Hero section', 'Feature highlights', 'Pricing tables', 'CTA buttons']
     },
     {
       id: '6',
       name: 'Minimalist Blog',
       category: 'blog',
-      description: 'Clean and minimal blog template with great typography',
+      description: 'Clean and minimal blog template with great typography and readability',
       preview: 'https://images.pexels.com/photos/261662/pexels-photo-261662.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.5,
       downloads: 432,
       isPremium: false,
-      tags: ['blog', 'minimal', 'typography']
+      tags: ['blog', 'minimal', 'typography'],
+      features: ['Article layouts', 'Category pages', 'Author profiles', 'Comments']
     },
     {
       id: '7',
       name: 'Creative Agency',
       category: 'creative',
-      description: 'Bold and dynamic template for creative agencies',
+      description: 'Bold and dynamic template for creative agencies and design studios',
       preview: 'https://images.pexels.com/photos/196667/pexels-photo-196667.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.8,
       downloads: 789,
       isPremium: true,
-      tags: ['agency', 'creative', 'bold']
+      tags: ['agency', 'creative', 'bold'],
+      features: ['Portfolio showcase', 'Team section', 'Services', 'Case studies']
     },
     {
       id: '8',
       name: 'Personal Brand',
       category: 'portfolio',
-      description: 'Perfect for personal branding and professional presence',
+      description: 'Perfect template for personal branding and professional online presence',
       preview: 'https://images.pexels.com/photos/374016/pexels-photo-374016.jpeg?auto=compress&cs=tinysrgb&w=500',
       rating: 4.7,
       downloads: 1123,
       isPremium: false,
-      tags: ['personal', 'brand', 'professional']
+      tags: ['personal', 'brand', 'professional'],
+      features: ['About section', 'Resume/CV', 'Portfolio', 'Blog']
     }
   ];
 
@@ -141,18 +163,109 @@ const TemplatesPage: React.FC = () => {
         return b.rating - a.rating;
       case 'newest':
         return b.id.localeCompare(a.id);
+      case 'name':
+        return a.name.localeCompare(b.name);
       default:
         return 0;
     }
   });
 
-  const handleUseTemplate = async (template: Template) => {
+  const handleUseTemplate = (template: Template) => {
+    if (!user) {
+      setCurrentView('auth');
+      return;
+    }
+
+    // Check plan restrictions
+    if (template.isPremium && user.plan === 'free') {
+      setErrors({ plan: 'This is a premium template. Upgrade your plan to use it.' });
+      return;
+    }
+
+    setShowCreateModal(template);
+    setWebsiteData({
+      name: `My ${template.name} Website`,
+      description: `Website created from ${template.name} template`
+    });
+    setErrors({});
+  };
+
+  const validateWebsiteData = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!websiteData.name.trim()) {
+      newErrors.name = 'Website name is required';
+    } else if (websiteData.name.length < 3) {
+      newErrors.name = 'Website name must be at least 3 characters';
+    } else if (websiteData.name.length > 50) {
+      newErrors.name = 'Website name must be less than 50 characters';
+    }
+
+    if (websiteData.description && websiteData.description.length > 200) {
+      newErrors.description = 'Description must be less than 200 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleCreateWebsite = async () => {
+    if (!showCreateModal || !user) return;
+
+    if (!validateWebsiteData()) return;
+
     try {
-      setIsCreating(true);
+      setIsCreating(showCreateModal.id);
       
       // Create website in database
       const newWebsite = await createWebsite({
-        name: `${template.name} Website`,
+        name: websiteData.name.trim(),
+        description: websiteData.description.trim() || undefined,
+        template: showCreateModal.name,
+        thumbnail: showCreateModal.preview
+      });
+      
+      // Convert to app store format and navigate to editor
+      const appWebsite = {
+        id: newWebsite.id,
+        name: newWebsite.name,
+        description: newWebsite.description || '',
+        domain: newWebsite.domain || undefined,
+        status: newWebsite.status,
+        lastModified: new Date(newWebsite.updated_at),
+        template: newWebsite.template,
+        thumbnail: newWebsite.thumbnail || undefined
+      };
+      
+      setCurrentWebsite(appWebsite);
+      setShowCreateModal(null);
+      setCurrentView('editor');
+    } catch (error) {
+      console.error('Failed to create website:', error);
+      setErrors({ general: error instanceof Error ? error.message : 'Failed to create website' });
+    } finally {
+      setIsCreating(null);
+    }
+  };
+
+  const handleQuickCreate = async (template: Template) => {
+    if (!user) {
+      setCurrentView('auth');
+      return;
+    }
+
+    // Check plan restrictions
+    if (template.isPremium && user.plan === 'free') {
+      setErrors({ plan: 'This is a premium template. Upgrade your plan to use it.' });
+      return;
+    }
+
+    try {
+      setIsCreating(template.id);
+      
+      // Create website with default name
+      const newWebsite = await createWebsite({
+        name: `My ${template.name} Website`,
         description: `Website created from ${template.name} template`,
         template: template.name,
         thumbnail: template.preview
@@ -174,11 +287,28 @@ const TemplatesPage: React.FC = () => {
       setCurrentView('editor');
     } catch (error) {
       console.error('Failed to create website:', error);
-      // You could add a toast notification here
+      setErrors({ general: error instanceof Error ? error.message : 'Failed to create website' });
     } finally {
-      setIsCreating(false);
+      setIsCreating(null);
     }
   };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h2>
+          <p className="text-gray-600 mb-6">Please sign in to browse and use templates</p>
+          <button
+            onClick={() => setCurrentView('auth')}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -198,6 +328,37 @@ const TemplatesPage: React.FC = () => {
             All templates are fully responsive and optimized for performance.
           </p>
         </motion.div>
+
+        {/* Error Messages */}
+        {errors.general && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center max-w-2xl mx-auto"
+          >
+            <AlertCircle className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
+            <p className="text-red-700 text-sm">{errors.general}</p>
+          </motion.div>
+        )}
+
+        {errors.plan && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-between max-w-2xl mx-auto"
+          >
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-yellow-500 mr-3 flex-shrink-0" />
+              <p className="text-yellow-700 text-sm">{errors.plan}</p>
+            </div>
+            <button
+              onClick={() => setCurrentView('profile')}
+              className="bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors"
+            >
+              Upgrade Plan
+            </button>
+          </motion.div>
+        )}
 
         {/* Filters */}
         <motion.div
@@ -243,6 +404,7 @@ const TemplatesPage: React.FC = () => {
                 <option value="popular">Most Popular</option>
                 <option value="rating">Highest Rated</option>
                 <option value="newest">Newest</option>
+                <option value="name">Name A-Z</option>
               </select>
             </div>
           </div>
@@ -317,20 +479,26 @@ const TemplatesPage: React.FC = () => {
                       </button>
                     </div>
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <button
-                        onClick={() => handleUseTemplate(template)}
-                        disabled={isCreating}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isCreating ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        ) : (
-                          <>
-                            Use Template
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </>
-                        )}
-                      </button>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleQuickCreate(template)}
+                          disabled={isCreating === template.id}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isCreating === template.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          ) : (
+                            <Plus className="h-4 w-4 mr-2" />
+                          )}
+                          Quick Start
+                        </button>
+                        <button
+                          onClick={() => handleUseTemplate(template)}
+                          className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+                        >
+                          Customize
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="p-6">
@@ -365,10 +533,10 @@ const TemplatesPage: React.FC = () => {
                     </div>
                     <button
                       onClick={() => handleUseTemplate(template)}
-                      disabled={isCreating}
+                      disabled={isCreating === template.id}
                       className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
-                      {isCreating ? (
+                      {isCreating === template.id ? (
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
                         'Use This Template'
@@ -395,6 +563,120 @@ const TemplatesPage: React.FC = () => {
           </motion.div>
         )}
       </div>
+
+      {/* Create Website Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">Create New Website</h3>
+                <button
+                  onClick={() => setShowCreateModal(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Template Preview */}
+              <div className="mb-6">
+                <div className="relative rounded-lg overflow-hidden">
+                  <img
+                    src={showCreateModal.preview}
+                    alt={showCreateModal.name}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                  <div className="absolute bottom-4 left-4 text-white">
+                    <h4 className="text-lg font-semibold">{showCreateModal.name}</h4>
+                    <p className="text-sm opacity-90">{showCreateModal.description}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Template Features */}
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Template Features</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {showCreateModal.features.map((feature, index) => (
+                    <div key={index} className="flex items-center text-sm text-gray-600">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                      {feature}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Website Details Form */}
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="websiteName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Website Name *
+                  </label>
+                  <input
+                    id="websiteName"
+                    type="text"
+                    value={websiteData.name}
+                    onChange={(e) => setWebsiteData(prev => ({ ...prev, name: e.target.value }))}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors.name ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter your website name"
+                  />
+                  {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="websiteDescription" className="block text-sm font-medium text-gray-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="websiteDescription"
+                    value={websiteData.description}
+                    onChange={(e) => setWebsiteData(prev => ({ ...prev, description: e.target.value }))}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors.description ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    rows={3}
+                    placeholder="Describe your website (optional)"
+                  />
+                  {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {websiteData.description.length}/200 characters
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setShowCreateModal(null)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateWebsite}
+                  disabled={isCreating === showCreateModal.id}
+                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {isCreating === showCreateModal.id ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                  )}
+                  Create Website
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

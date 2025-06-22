@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Globe, Edit3, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle, Calendar, TrendingUp, Users, BarChart3 } from 'lucide-react';
+import { Plus, Globe, Edit3, Search, Filter, Trash2, Copy, ExternalLink, AlertCircle, Calendar, TrendingUp, BarChart3, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
@@ -240,82 +240,116 @@ const Dashboard: React.FC = () => {
           ))}
         </motion.div>
 
-        {/* Filters and Search */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="bg-white rounded-xl p-6 shadow-sm mb-8"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                placeholder="Search websites by name, description, or template..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Filters */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Filter className="h-5 w-5 text-gray-400" />
-                <select
-                  value={filterBy}
-                  onChange={(e) => setFilterBy(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">All Websites ({websites.length})</option>
-                  <option value="published">Published ({websites.filter(w => w.status === 'published').length})</option>
-                  <option value="draft">Drafts ({websites.filter(w => w.status === 'draft').length})</option>
-                </select>
+        {/* Quick Start Banner - Show only if no websites */}
+        {websites.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 mb-8 text-white"
+          >
+            <div className="flex flex-col md:flex-row items-center justify-between">
+              <div className="mb-4 md:mb-0">
+                <div className="flex items-center mb-2">
+                  <Zap className="h-6 w-6 mr-2" />
+                  <span className="bg-white bg-opacity-20 px-3 py-1 rounded-full text-sm font-medium">
+                    Get Started
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Create Your First Website</h3>
+                <p className="text-blue-100">
+                  Choose from our collection of professional templates and start building your online presence today.
+                </p>
               </div>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="name">Name A-Z</option>
-                <option value="updated">Recently Updated</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Active Filters Display */}
-          {(searchTerm || filterBy !== 'all') && (
-            <div className="mt-4 flex items-center space-x-2">
-              <span className="text-sm text-gray-600">Active filters:</span>
-              {searchTerm && (
-                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                  Search: "{searchTerm}"
-                </span>
-              )}
-              {filterBy !== 'all' && (
-                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs capitalize">
-                  Status: {filterBy}
-                </span>
-              )}
               <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setFilterBy('all');
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800"
+                onClick={handleCreateWebsite}
+                className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors flex items-center"
               >
-                Clear all
+                <Plus className="h-4 w-4 mr-2" />
+                Browse Templates
               </button>
             </div>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
+
+        {/* Filters and Search - Show only if there are websites */}
+        {websites.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="bg-white rounded-xl p-6 shadow-sm mb-8"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <input
+                  type="text"
+                  placeholder="Search websites by name, description, or template..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Filters */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-5 w-5 text-gray-400" />
+                  <select
+                    value={filterBy}
+                    onChange={(e) => setFilterBy(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Websites ({websites.length})</option>
+                    <option value="published">Published ({websites.filter(w => w.status === 'published').length})</option>
+                    <option value="draft">Drafts ({websites.filter(w => w.status === 'draft').length})</option>
+                  </select>
+                </div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="name">Name A-Z</option>
+                  <option value="updated">Recently Updated</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Active Filters Display */}
+            {(searchTerm || filterBy !== 'all') && (
+              <div className="mt-4 flex items-center space-x-2">
+                <span className="text-sm text-gray-600">Active filters:</span>
+                {searchTerm && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                    Search: "{searchTerm}"
+                  </span>
+                )}
+                {filterBy !== 'all' && (
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs capitalize">
+                    Status: {filterBy}
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFilterBy('all');
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Results Summary */}
-        {(searchTerm || filterBy !== 'all') && (
+        {websites.length > 0 && (searchTerm || filterBy !== 'all') && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

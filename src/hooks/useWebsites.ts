@@ -71,27 +71,69 @@ export const useWebsites = () => {
 
   const createWebsite = async (websiteData: CreateWebsiteData): Promise<Website> => {
     if (!user) {
-      throw new Error('User not authenticated');
+      throw new Error('User not authenticated. Please sign in to create a website.');
+    }
+
+    // Validate input data
+    if (!websiteData.name || !websiteData.name.trim()) {
+      throw new Error('Website name is required');
+    }
+
+    if (websiteData.name.trim().length < 3) {
+      throw new Error('Website name must be at least 3 characters long');
+    }
+
+    if (websiteData.name.trim().length > 50) {
+      throw new Error('Website name must be less than 50 characters');
+    }
+
+    if (!websiteData.template || !websiteData.template.trim()) {
+      throw new Error('Template is required');
+    }
+
+    if (websiteData.description && websiteData.description.length > 200) {
+      throw new Error('Description must be less than 200 characters');
     }
 
     try {
+      const insertData = {
+        user_id: user.id,
+        name: websiteData.name.trim(),
+        description: websiteData.description?.trim() || null,
+        template: websiteData.template.trim(),
+        thumbnail: websiteData.thumbnail || null,
+        status: 'draft' as const,
+        domain: null
+      };
+
+      console.log('Creating website with data:', insertData);
+
       const { data, error: insertError } = await supabase
         .from('websites')
-        .insert({
-          user_id: user.id,
-          name: websiteData.name,
-          description: websiteData.description || null,
-          template: websiteData.template,
-          thumbnail: websiteData.thumbnail || null,
-          status: 'draft' as const
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (insertError) {
         console.error('Error creating website:', insertError);
-        throw new Error(`Failed to create website: ${insertError.message}`);
+        
+        // Provide user-friendly error messages
+        if (insertError.code === '23505') {
+          throw new Error('A website with this name already exists. Please choose a different name.');
+        } else if (insertError.code === '23503') {
+          throw new Error('Invalid user account. Please sign out and sign in again.');
+        } else if (insertError.message.includes('row-level security')) {
+          throw new Error('Permission denied. Please check your account permissions.');
+        } else {
+          throw new Error(`Failed to create website: ${insertError.message}`);
+        }
       }
+
+      if (!data) {
+        throw new Error('Website was created but no data was returned');
+      }
+
+      console.log('Website created successfully:', data);
 
       // Add to local state
       setWebsites(prev => [data, ...prev]);
@@ -110,10 +152,40 @@ export const useWebsites = () => {
       throw new Error('User not authenticated');
     }
 
+    if (!id || !id.trim()) {
+      throw new Error('Website ID is required');
+    }
+
+    // Validate updates
+    if (updates.name !== undefined) {
+      if (!updates.name || !updates.name.trim()) {
+        throw new Error('Website name cannot be empty');
+      }
+      if (updates.name.trim().length < 3) {
+        throw new Error('Website name must be at least 3 characters long');
+      }
+      if (updates.name.trim().length > 50) {
+        throw new Error('Website name must be less than 50 characters');
+      }
+    }
+
+    if (updates.description !== undefined && updates.description && updates.description.length > 200) {
+      throw new Error('Description must be less than 200 characters');
+    }
+
     try {
+      // Clean up the updates object
+      const cleanUpdates: any = {};
+      if (updates.name !== undefined) cleanUpdates.name = updates.name.trim();
+      if (updates.description !== undefined) cleanUpdates.description = updates.description?.trim() || null;
+      if (updates.domain !== undefined) cleanUpdates.domain = updates.domain?.trim() || null;
+      if (updates.status !== undefined) cleanUpdates.status = updates.status;
+      if (updates.template !== undefined) cleanUpdates.template = updates.template.trim();
+      if (updates.thumbnail !== undefined) cleanUpdates.thumbnail = updates.thumbnail || null;
+
       const { data, error: updateError } = await supabase
         .from('websites')
-        .update(updates)
+        .update(cleanUpdates)
         .eq('id', id)
         .eq('user_id', user.id) // Ensure user owns the website
         .select()
@@ -121,7 +193,18 @@ export const useWebsites = () => {
 
       if (updateError) {
         console.error('Error updating website:', updateError);
-        throw new Error(`Failed to update website: ${updateError.message}`);
+        
+        if (updateError.code === 'PGRST116') {
+          throw new Error('Website not found or you do not have permission to update it');
+        } else if (updateError.code === '23505') {
+          throw new Error('A website with this name already exists. Please choose a different name.');
+        } else {
+          throw new Error(`Failed to update website: ${updateError.message}`);
+        }
+      }
+
+      if (!data) {
+        throw new Error('Website was updated but no data was returned');
       }
 
       // Update local state
@@ -146,6 +229,10 @@ export const useWebsites = () => {
       throw new Error('User not authenticated');
     }
 
+    if (!id || !id.trim()) {
+      throw new Error('Website ID is required');
+    }
+
     try {
       const { error: deleteError } = await supabase
         .from('websites')
@@ -155,7 +242,12 @@ export const useWebsites = () => {
 
       if (deleteError) {
         console.error('Error deleting website:', deleteError);
-        throw new Error(`Failed to delete website: ${deleteError.message}`);
+        
+        if (deleteError.code === 'PGRST116') {
+          throw new Error('Website not found or you do not have permission to delete it');
+        } else {
+          throw new Error(`Failed to delete website: ${deleteError.message}`);
+        }
       }
 
       // Remove from local state
@@ -210,6 +302,14 @@ export const useWebsites = () => {
     );
   };
 
+  const publishWebsite = async (id: string): Promise<Website> => {
+    return updateWebsite(id, { status: 'published' });
+  };
+
+  const unpublishWebsite = async (id: string): Promise<Website> => {
+    return updateWebsite(id, { status: 'draft' });
+  };
+
   // Fetch websites when user changes
   useEffect(() => {
     fetchWebsites();
@@ -218,6 +318,8 @@ export const useWebsites = () => {
   // Set up real-time subscription for websites
   useEffect(() => {
     if (!user) return;
+
+    console.log('Setting up real-time subscription for user:', user.id);
 
     const subscription = supabase
       .channel('websites_changes')
@@ -234,7 +336,12 @@ export const useWebsites = () => {
           
           switch (payload.eventType) {
             case 'INSERT':
-              setWebsites(prev => [payload.new as Website, ...prev]);
+              setWebsites(prev => {
+                // Check if website already exists to avoid duplicates
+                const exists = prev.some(w => w.id === payload.new.id);
+                if (exists) return prev;
+                return [payload.new as Website, ...prev];
+              });
               break;
             case 'UPDATE':
               setWebsites(prev => 
@@ -251,9 +358,12 @@ export const useWebsites = () => {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
     return () => {
+      console.log('Unsubscribing from real-time updates');
       subscription.unsubscribe();
     };
   }, [user]);
@@ -267,6 +377,8 @@ export const useWebsites = () => {
     updateWebsite,
     deleteWebsite,
     duplicateWebsite,
+    publishWebsite,
+    unpublishWebsite,
     getWebsiteById,
     getWebsitesByStatus,
     searchWebsites
