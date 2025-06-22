@@ -5,6 +5,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { useWebsites } from '../../hooks/useWebsites';
 import { useStripe, PremiumTemplate } from '../../hooks/useStripe';
 import PremiumTemplateCard from './PremiumTemplateCard';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import { useToast } from '../ui/use-toast';
 
 interface Template {
   id: string;
@@ -23,6 +26,7 @@ const TemplatesPage: React.FC = () => {
   const { user, setCurrentWebsite, setCurrentView } = useAppStore();
   const { createWebsite } = useWebsites();
   const { getPremiumTemplates } = useStripe();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [sortBy, setSortBy] = React.useState('popular');
@@ -175,6 +179,11 @@ const TemplatesPage: React.FC = () => {
       const premiumTemplate = template as PremiumTemplate;
       if (!premiumTemplate.has_access && user.plan === 'free') {
         setErrors({ plan: 'This is a premium template. Upgrade your plan or purchase individually to use it.' });
+        toast({
+          title: "Premium template",
+          description: "This is a premium template. Upgrade your plan or purchase individually to use it.",
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -237,9 +246,19 @@ const TemplatesPage: React.FC = () => {
       setCurrentWebsite(appWebsite);
       setShowCreateModal(null);
       setCurrentView('editor');
+      
+      toast({
+        title: "Website created",
+        description: "Your new website has been created successfully",
+      });
     } catch (error) {
       console.error('Failed to create website:', error);
       setErrors({ general: error instanceof Error ? error.message : 'Failed to create website' });
+      toast({
+        title: "Creation failed",
+        description: error instanceof Error ? error.message : 'Failed to create website',
+        variant: "destructive",
+      });
     } finally {
       setIsCreating(null);
     }
@@ -254,6 +273,11 @@ const TemplatesPage: React.FC = () => {
     // Check plan restrictions for premium templates
     if (template.isPremium && user.plan === 'free') {
       setErrors({ plan: 'This is a premium template. Upgrade your plan to use it.' });
+      toast({
+        title: "Premium template",
+        description: "This is a premium template. Upgrade your plan to use it.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -282,9 +306,19 @@ const TemplatesPage: React.FC = () => {
       
       setCurrentWebsite(appWebsite);
       setCurrentView('editor');
+      
+      toast({
+        title: "Website created",
+        description: "Your new website has been created successfully",
+      });
     } catch (error) {
       console.error('Failed to create website:', error);
       setErrors({ general: error instanceof Error ? error.message : 'Failed to create website' });
+      toast({
+        title: "Creation failed",
+        description: error instanceof Error ? error.message : 'Failed to create website',
+        variant: "destructive",
+      });
     } finally {
       setIsCreating(null);
     }
@@ -296,12 +330,13 @@ const TemplatesPage: React.FC = () => {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h2>
           <p className="text-gray-600 mb-6">Please sign in to browse and use templates</p>
-          <button
+          <Button
             onClick={() => setCurrentView('auth')}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            variant="default"
+            size="lg"
           >
             Sign In
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -348,12 +383,13 @@ const TemplatesPage: React.FC = () => {
               <AlertCircle className="h-5 w-5 text-yellow-500 mr-3 flex-shrink-0" />
               <p className="text-yellow-700 text-sm">{errors.plan}</p>
             </div>
-            <button
+            <Button
               onClick={() => setCurrentView('profile')}
-              className="bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors"
+              variant="default"
+              className="bg-yellow-600 hover:bg-yellow-700 text-white"
             >
               Upgrade Plan
-            </button>
+            </Button>
           </motion.div>
         )}
 
@@ -435,12 +471,13 @@ const TemplatesPage: React.FC = () => {
                 </h2>
                 <p className="text-gray-600">Professional templates with advanced features</p>
               </div>
-              <button
+              <Button
                 onClick={() => setShowPremiumOnly(true)}
+                variant="link"
                 className="text-blue-600 hover:text-blue-700 font-medium"
               >
                 View All Premium →
-              </button>
+              </Button>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -524,10 +561,11 @@ const TemplatesPage: React.FC = () => {
                       </div>
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                         <div className="flex space-x-2">
-                          <button
+                          <Button
                             onClick={() => handleQuickCreate(template)}
                             disabled={isCreating === template.id}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                            variant="default"
+                            className="flex items-center"
                           >
                             {isCreating === template.id ? (
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -535,13 +573,13 @@ const TemplatesPage: React.FC = () => {
                               <Plus className="h-4 w-4 mr-2" />
                             )}
                             Quick Start
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={() => handleUseTemplate(template)}
-                            className="bg-white text-gray-900 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+                            variant="secondary"
                           >
                             Customize
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -575,17 +613,18 @@ const TemplatesPage: React.FC = () => {
                           </span>
                         ))}
                       </div>
-                      <button
+                      <Button
                         onClick={() => handleUseTemplate(template)}
                         disabled={isCreating === template.id}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        variant="default"
+                        className="w-full flex items-center justify-center"
                       >
                         {isCreating === template.id ? (
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         ) : (
                           'Use This Template'
                         )}
-                      </button>
+                      </Button>
                     </div>
                   </motion.div>
                 );
@@ -602,9 +641,9 @@ const TemplatesPage: React.FC = () => {
             transition={{ duration: 0.6, delay: 0.5 }}
             className="text-center mt-12"
           >
-            <button className="bg-white text-gray-700 px-8 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors border border-gray-300">
+            <Button variant="outline" size="lg">
               Load More Templates
-            </button>
+            </Button>
           </motion.div>
         )}
       </div>
@@ -699,16 +738,17 @@ const TemplatesPage: React.FC = () => {
 
               {/* Actions */}
               <div className="flex space-x-3 mt-6">
-                <button
+                <Button
                   onClick={() => setShowCreateModal(null)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  variant="outline"
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleCreateWebsite}
                   disabled={isCreating === showCreateModal.id}
-                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  className="flex-1 flex items-center justify-center"
                 >
                   {isCreating === showCreateModal.id ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -716,7 +756,7 @@ const TemplatesPage: React.FC = () => {
                     <ArrowRight className="h-4 w-4 mr-2" />
                   )}
                   Create Website
-                </button>
+                </Button>
               </div>
             </div>
           </motion.div>
