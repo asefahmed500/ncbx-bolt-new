@@ -20,144 +20,81 @@ A modern, production-ready website builder with real Supabase authentication, dr
 - **State Management**: Zustand
 - **Icons**: Lucide React
 
-## 📋 Setup Instructions
+## 📋 Quick Start
 
-### 1. Supabase Setup
+### 1. Clone and Install
+```bash
+git clone <repository-url>
+cd ncbx-website-builder
+npm install
+```
 
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to Settings > API to get your project URL and anon key
-3. Go to Authentication > Providers and enable:
-   - Email (enabled by default)
-   - Google OAuth (optional but recommended)
-
-### 2. Environment Variables
-
-Create a `.env` file in the root directory:
-
+### 2. Environment Setup
+Create a `.env` file:
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 ### 3. Database Setup
+- Copy the migration from `supabase/migrations/` folder
+- Run it in your Supabase SQL Editor
 
-Run the migration file in your Supabase SQL editor:
-- Copy the contents of `supabase/migrations/001_initial_schema.sql`
-- Paste and run in Supabase > SQL Editor
-
-### 4. Google OAuth Setup (Optional)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project or select existing
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URIs:
-   - `https://your-project.supabase.co/auth/v1/callback`
-6. Copy Client ID and Secret to Supabase > Authentication > Providers > Google
-
-### 5. Install and Run
-
+### 4. Run Development Server
 ```bash
-npm install
 npm run dev
 ```
 
-## 🎯 User Flows
+## 🎯 User Journey
 
-### Authentication Flow
-1. **Sign Up**: Email/password or Google OAuth
-2. **Email Verification**: Automatic profile creation
-3. **Sign In**: Persistent sessions with auto-refresh
-4. **Password Reset**: Email-based password recovery
+### For End Users:
+1. **Sign Up/Login** → Create account or sign in
+2. **Choose Template** → Browse and select from professional templates
+3. **Customize** → Use drag-and-drop editor to build your website
+4. **Preview** → Test on desktop, tablet, and mobile
+5. **Publish** → Deploy your website with custom domain
 
-### Website Building Flow
-1. **Dashboard**: View all websites with stats
-2. **Template Selection**: Choose from categorized templates
-3. **Drag & Drop Editor**: Visual website building
-4. **Device Preview**: Desktop, tablet, mobile views
-5. **Publishing**: Deploy to custom domains
-
-### Collaboration Flow (UI Ready)
-- Real-time editing with live cursors
-- Team member management
-- Permission-based access control
-- Version history and rollback
-
-## 🔐 Security Features
-
-- **Row Level Security**: Database-level access control
-- **JWT Authentication**: Secure token-based auth
-- **OAuth Integration**: Trusted third-party authentication
-- **Input Validation**: Client and server-side validation
-- **HTTPS Only**: Secure data transmission
+### For Administrators:
+1. **User Management** → Monitor user accounts and plans
+2. **Template Management** → Add/update website templates
+3. **Analytics** → Track usage and performance metrics
+4. **Support** → Help users with technical issues
 
 ## 📊 Database Schema
 
-### Profiles Table
-- User information and preferences
-- Plan management (free, pro, business)
-- Avatar and profile data
+### Tables:
+- **profiles**: User information, plans, preferences
+- **websites**: Website data, status, templates
+- **auth.users**: Supabase authentication (built-in)
 
-### Websites Table
-- Website metadata and settings
-- Status tracking (draft, published)
-- Template and thumbnail references
-
-## 🎨 Design System
-
-- **Colors**: Blue primary, purple accent, semantic colors
-- **Typography**: Inter font family with proper hierarchy
-- **Spacing**: 8px grid system
-- **Components**: Reusable, accessible components
-- **Animations**: Smooth transitions and micro-interactions
-
-## 🚀 Deployment
-
-The app is ready for deployment to:
-- **Netlify**: Static hosting with serverless functions
-- **Vercel**: Edge functions and global CDN
-- **Supabase**: Database and authentication hosting
-
-## 📈 Performance
-
-- **Code Splitting**: Lazy loading for optimal performance
-- **Image Optimization**: Responsive images with proper sizing
-- **Bundle Analysis**: Optimized build output
-- **Caching**: Efficient data fetching and caching strategies
+### Security:
+- Row Level Security (RLS) enabled
+- Users can only access their own data
+- JWT-based authentication
 
 ## 🔧 Development
 
 ```bash
-# Development server
+# Development
 npm run dev
 
-# Build for production
+# Build
 npm run build
 
-# Preview production build
+# Preview
 npm run preview
 
-# Lint code
+# Lint
 npm run lint
 ```
 
-## 📝 Environment Variables
+## 🚀 Deployment
 
-Required environment variables:
+Ready for deployment to:
+- Netlify
+- Vercel
+- Any static hosting provider
 
-```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+## 📝 License
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
+MIT License - see LICENSE file for details.
