@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  MessageSquare, Plus, Search, Filter, Clock, User, 
-  AlertCircle, CheckCircle, Eye, MessageCircle, Tag,
-  Calendar, Priority, ArrowUp, ArrowDown, Minus
-} from 'lucide-react';
+import { MessageSquare, Plus, Search, Filter, Clock, User, AlertCircle, CheckCircle, Eye, MessageCircle, Tag, Calendar, GitFork as Priority, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
