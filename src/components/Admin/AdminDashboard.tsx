@@ -2,46 +2,50 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Globe, CreditCard, TrendingUp, Search, Filter, 
   Shield, Edit, Trash2, AlertCircle, CheckCircle, Crown,
-  BarChart3, Calendar, DollarSign, Activity
+  BarChart3, Calendar, DollarSign, Activity, MessageSquare,
+  Settings, Bell, Download, Upload, Mail, UserCheck,
+  Clock, Target, Zap, Eye, MoreHorizontal
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../lib/supabase';
+import UserManagement from './UserManagement';
+import SupportTickets from './SupportTickets';
+import BehavioralAnalytics from './BehavioralAnalytics';
+import BulkOperations from './BulkOperations';
+import SystemNotifications from './SystemNotifications';
 
-interface SystemStats {
+interface AdminStats {
   total_users: number;
-  total_websites: number;
-  total_published_websites: number;
-  total_premium_templates: number;
-  users_this_month: number;
-  websites_this_month: number;
-  free_users: number;
-  pro_users: number;
-  business_users: number;
+  active_users_today: number;
+  active_users_week: number;
+  active_users_month: number;
+  new_users_today: number;
+  new_users_week: number;
+  new_users_month: number;
+  users_by_plan: Record<string, number>;
+  users_by_role: Record<string, number>;
+  top_activities: Array<{ action: string; count: number }>;
 }
 
-interface UserData {
-  id: string;
-  email: string;
-  full_name: string;
-  role: 'user' | 'admin';
-  plan: 'free' | 'pro' | 'business';
-  created_at: string;
-  updated_at: string;
-  last_sign_in_at: string;
-  website_count: number;
+interface SupportStats {
+  total_tickets: number;
+  open_tickets: number;
+  in_progress_tickets: number;
+  resolved_today: number;
+  avg_resolution_time: string;
+  tickets_by_category: Record<string, number>;
+  tickets_by_priority: Record<string, number>;
 }
 
 const AdminDashboard: React.FC = () => {
   const { user, setCurrentView } = useAppStore();
-  const [stats, setStats] = useState<SystemStats | null>(null);
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [supportStats, setSupportStats] = useState<SupportStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin'>('all');
-  const [filterPlan, setFilterPlan] = useState<'all' | 'free' | 'pro' | 'business'>('all');
-  const [updating, setUpdating] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // Redirect if not admin
   useEffect(() => {
@@ -54,6 +58,7 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (user?.role === 'admin') {
       fetchAdminData();
+      fetchNotifications();
     }
   }, [user]);
 
@@ -62,27 +67,29 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch system statistics
-      const { data: statsData, error: statsError } = await supabase
-        .rpc('admin_get_system_stats');
+      // Fetch user statistics
+      const { data: userStats, error: userStatsError } = await supabase
+        .rpc('admin_get_user_stats');
 
-      if (statsError) {
-        throw new Error(`Failed to fetch statistics: ${statsError.message}`);
+      if (userStatsError) {
+        throw new Error(`Failed to fetch user statistics: ${userStatsError.message}`);
       }
 
-      if (statsData && statsData.length > 0) {
-        setStats(statsData[0]);
+      if (userStats && userStats.length > 0) {
+        setAdminStats(userStats[0]);
       }
 
-      // Fetch all users
-      const { data: usersData, error: usersError } = await supabase
-        .rpc('admin_get_all_users');
+      // Fetch support statistics
+      const { data: supportData, error: supportError } = await supabase
+        .rpc('admin_get_support_stats');
 
-      if (usersError) {
-        throw new Error(`Failed to fetch users: ${usersError.message}`);
+      if (supportError) {
+        throw new Error(`Failed to fetch support statistics: ${supportError.message}`);
       }
 
-      setUsers(usersData || []);
+      if (supportData && supportData.length > 0) {
+        setSupportStats(supportData[0]);
+      }
     } catch (err) {
       console.error('Error fetching admin data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load admin data');
@@ -91,83 +98,33 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const updateUserRole = async (userId: string, newRole: 'user' | 'admin') => {
+  const fetchNotifications = async () => {
     try {
-      setUpdating(`role-${userId}`);
-      
-      const { error } = await supabase
-        .rpc('admin_update_user_role', {
-          target_user_id: userId,
-          new_role: newRole
-        });
+      const { data, error } = await supabase
+        .from('system_notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
 
       if (error) {
-        throw new Error(error.message);
+        console.error('Error fetching notifications:', error);
+        return;
       }
 
-      // Update local state
-      setUsers(prev => 
-        prev.map(u => 
-          u.id === userId ? { ...u, role: newRole } : u
-        )
-      );
-
-      // Show success message
-      setError(null);
+      setNotifications(data || []);
     } catch (err) {
-      console.error('Error updating user role:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update user role');
-    } finally {
-      setUpdating(null);
+      console.error('Error in fetchNotifications:', err);
     }
   };
 
-  const updateUserPlan = async (userId: string, newPlan: 'free' | 'pro' | 'business') => {
-    try {
-      setUpdating(`plan-${userId}`);
-      
-      const { error } = await supabase
-        .rpc('admin_update_user_plan', {
-          target_user_id: userId,
-          new_plan: newPlan
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // Update local state
-      setUsers(prev => 
-        prev.map(u => 
-          u.id === userId ? { ...u, plan: newPlan } : u
-        )
-      );
-
-      // Update stats
-      await fetchAdminData();
-      
-      setError(null);
-    } catch (err) {
-      console.error('Error updating user plan:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update user plan');
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  // Filter users
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    const matchesPlan = filterPlan === 'all' || user.plan === filterPlan;
-    return matchesSearch && matchesRole && matchesPlan;
-  });
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString();
-  };
+  const tabs = [
+    { id: 'overview', name: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
+    { id: 'users', name: 'User Management', icon: <Users className="h-4 w-4" /> },
+    { id: 'support', name: 'Support Tickets', icon: <MessageSquare className="h-4 w-4" /> },
+    { id: 'analytics', name: 'Behavioral Analytics', icon: <Activity className="h-4 w-4" /> },
+    { id: 'bulk', name: 'Bulk Operations', icon: <Zap className="h-4 w-4" /> },
+    { id: 'notifications', name: 'Notifications', icon: <Bell className="h-4 w-4" /> },
+  ];
 
   if (!user || user.role !== 'admin') {
     return (
@@ -214,15 +171,25 @@ const AdminDashboard: React.FC = () => {
                 <Shield className="h-8 w-8 text-purple-600" />
                 <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
               </div>
-              <p className="text-gray-600">System overview and user management</p>
+              <p className="text-gray-600">Comprehensive system management and analytics</p>
             </div>
-            <button
-              onClick={fetchAdminData}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center"
-            >
-              <Activity className="h-4 w-4 mr-2" />
-              Refresh Data
-            </button>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={fetchAdminData}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors flex items-center"
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                Refresh Data
+              </button>
+              <div className="relative">
+                <Bell className="h-6 w-6 text-gray-600" />
+                {notifications.filter(n => !n.is_read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {notifications.filter(n => !n.is_read).length}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </motion.div>
 
@@ -238,246 +205,188 @@ const AdminDashboard: React.FC = () => {
           </motion.div>
         )}
 
-        {/* Statistics Cards */}
-        {stats && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-          >
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Users className="h-6 w-6 text-blue-600" />
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.total_users}</span>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Total Users</h3>
-              <p className="text-xs text-gray-500">+{stats.users_this_month} this month</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Globe className="h-6 w-6 text-green-600" />
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.total_websites}</span>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Total Websites</h3>
-              <p className="text-xs text-gray-500">{stats.total_published_websites} published</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Crown className="h-6 w-6 text-purple-600" />
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.total_premium_templates}</span>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Premium Templates</h3>
-              <p className="text-xs text-gray-500">Active templates</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-orange-600" />
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{stats.websites_this_month}</span>
-              </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">New Websites</h3>
-              <p className="text-xs text-gray-500">This month</p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Plan Distribution */}
-        {stats && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-8"
-          >
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Plan Distribution</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{stats.free_users}</div>
-                <div className="text-sm text-gray-600">Free Users</div>
-                <div className="text-xs text-gray-500">
-                  {stats.total_users > 0 ? Math.round((stats.free_users / stats.total_users) * 100) : 0}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.pro_users}</div>
-                <div className="text-sm text-gray-600">Pro Users</div>
-                <div className="text-xs text-gray-500">
-                  {stats.total_users > 0 ? Math.round((stats.pro_users / stats.total_users) * 100) : 0}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{stats.business_users}</div>
-                <div className="text-sm text-gray-600">Business Users</div>
-                <div className="text-xs text-gray-500">
-                  {stats.total_users > 0 ? Math.round((stats.business_users / stats.total_users) * 100) : 0}%
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* User Management */}
+        {/* Tab Navigation */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="bg-white rounded-xl shadow-sm border border-gray-100"
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="mb-8"
         >
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">User Management</h3>
-            
-            {/* Filters */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  type="text"
-                  placeholder="Search users by email or name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Filter className="h-5 w-5 text-gray-400" />
-                  <select
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value as any)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="user">Users</option>
-                    <option value="admin">Admins</option>
-                  </select>
-                </div>
-                <select
-                  value={filterPlan}
-                  onChange={(e) => setFilterPlan(e.target.value as any)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'border-purple-500 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
-                  <option value="all">All Plans</option>
-                  <option value="free">Free</option>
-                  <option value="pro">Pro</option>
-                  <option value="business">Business</option>
-                </select>
-              </div>
-            </div>
+                  {tab.icon}
+                  <span>{tab.name}</span>
+                </button>
+              ))}
+            </nav>
           </div>
+        </motion.div>
 
-          {/* Users Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Plan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Websites
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Sign In
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredUsers.map((userData) => (
-                  <tr key={userData.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+        {/* Tab Content */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              {/* Key Metrics */}
+              {adminStats && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Users className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{adminStats.total_users}</span>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">Total Users</h3>
+                    <p className="text-xs text-gray-500">+{adminStats.new_users_today} today</p>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Activity className="h-6 w-6 text-green-600" />
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{adminStats.active_users_today}</span>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">Active Today</h3>
+                    <p className="text-xs text-gray-500">{adminStats.active_users_week} this week</p>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <MessageSquare className="h-6 w-6 text-purple-600" />
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{supportStats?.open_tickets || 0}</span>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">Open Tickets</h3>
+                    <p className="text-xs text-gray-500">{supportStats?.resolved_today || 0} resolved today</p>
+                  </div>
+
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <TrendingUp className="h-6 w-6 text-orange-600" />
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{adminStats.new_users_week}</span>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">New This Week</h3>
+                    <p className="text-xs text-gray-500">{adminStats.new_users_month} this month</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Charts and Analytics */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* User Distribution */}
+                {adminStats && (
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">User Distribution</h3>
+                    <div className="space-y-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {userData.full_name || 'No name'}
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">By Plan</h4>
+                        <div className="space-y-2">
+                          {Object.entries(adminStats.users_by_plan).map(([plan, count]) => (
+                            <div key={plan} className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600 capitalize">{plan}</span>
+                              <div className="flex items-center space-x-2">
+                                <div className="w-20 bg-gray-200 rounded-full h-2">
+                                  <div 
+                                    className="bg-blue-600 h-2 rounded-full" 
+                                    style={{ width: `${(count / adminStats.total_users) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-sm font-medium text-gray-900">{count}</span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="text-sm text-gray-500">{userData.email}</div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={userData.role}
-                        onChange={(e) => updateUserRole(userData.id, e.target.value as 'user' | 'admin')}
-                        disabled={updating === `role-${userData.id}` || userData.id === user.id}
-                        className={`text-sm rounded-full px-3 py-1 font-medium border-0 focus:ring-2 focus:ring-purple-500 ${
-                          userData.role === 'admin' 
-                            ? 'bg-purple-100 text-purple-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        } ${userData.id === user.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={userData.plan}
-                        onChange={(e) => updateUserPlan(userData.id, e.target.value as 'free' | 'pro' | 'business')}
-                        disabled={updating === `plan-${userData.id}`}
-                        className={`text-sm rounded-full px-3 py-1 font-medium border-0 focus:ring-2 focus:ring-purple-500 ${
-                          userData.plan === 'business' 
-                            ? 'bg-purple-100 text-purple-800'
-                            : userData.plan === 'pro'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        <option value="free">Free</option>
-                        <option value="pro">Pro</option>
-                        <option value="business">Business</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {userData.website_count}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(userData.created_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(userData.last_sign_in_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        {(updating === `role-${userData.id}` || updating === `plan-${userData.id}`) && (
-                          <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                        )}
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">By Role</h4>
+                        <div className="space-y-2">
+                          {Object.entries(adminStats.users_by_role).map(([role, count]) => (
+                            <div key={role} className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600 capitalize">{role}</span>
+                              <div className="flex items-center space-x-2">
+                                <div className="w-20 bg-gray-200 rounded-full h-2">
+                                  <div 
+                                    className="bg-purple-600 h-2 rounded-full" 
+                                    style={{ width: `${(count / adminStats.total_users) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-sm font-medium text-gray-900">{count}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                )}
 
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
-              <p className="text-gray-500">Try adjusting your search or filters</p>
+                {/* Top Activities */}
+                {adminStats && (
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Top User Activities</h3>
+                    <div className="space-y-3">
+                      {adminStats.top_activities.slice(0, 8).map((activity, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">{activity.action.replace(/_/g, ' ')}</span>
+                          <span className="text-sm font-medium text-gray-900">{activity.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Notifications */}
+              {notifications.length > 0 && (
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent System Notifications</h3>
+                  <div className="space-y-3">
+                    {notifications.slice(0, 5).map((notification) => (
+                      <div key={notification.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                        <div className={`w-2 h-2 rounded-full mt-2 ${
+                          notification.severity === 'critical' ? 'bg-red-500' :
+                          notification.severity === 'warning' ? 'bg-yellow-500' :
+                          notification.severity === 'error' ? 'bg-red-400' : 'bg-blue-500'
+                        }`}></div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-medium text-gray-900">{notification.title}</h4>
+                          <p className="text-sm text-gray-600">{notification.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(notification.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {activeTab === 'users' && <UserManagement />}
+          {activeTab === 'support' && <SupportTickets />}
+          {activeTab === 'analytics' && <BehavioralAnalytics />}
+          {activeTab === 'bulk' && <BulkOperations />}
+          {activeTab === 'notifications' && <SystemNotifications notifications={notifications} onRefresh={fetchNotifications} />}
         </motion.div>
       </div>
     </div>
