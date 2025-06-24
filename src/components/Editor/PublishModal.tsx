@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { Globe, AlertCircle, CheckCircle, Copy, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';

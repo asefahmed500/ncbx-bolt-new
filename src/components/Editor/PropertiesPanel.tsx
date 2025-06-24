@@ -12,6 +12,7 @@ const PropertiesPanel: React.FC = () => {
     type: 'text',
     content: 'Sample text content',
     styles: {
+      fontFamily: 'Inter, sans-serif',
       fontSize: '16px',
       fontWeight: 'normal',
       color: '#374151',

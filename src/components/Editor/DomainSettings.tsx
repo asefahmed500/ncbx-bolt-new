@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Globe, CheckCircle, AlertCircle, ExternalLink, Copy, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDomains } from '../../hooks/useDomains';
@@ -14,22 +14,55 @@ interface DomainSettingsProps {
   onClose: () => void;
 }
 
+interface DomainStatus {
+  dns: {
+    configured: boolean;
+  };
+  ssl: {
+    configured: boolean;
+    validUntil?: string;
+  };
+}
+
+interface DomainInstructions {
+  instructions: {
+    steps: string[];
+  };
+  dnsRecords: Array<{
+    type: string;
+    name: string;
+    value: string;
+    ttl: string;
+  }>;
+}
+
 const DomainSettings: React.FC<DomainSettingsProps> = ({ website, onClose }) => {
   const { connectCustomDomain, disconnectDomain, getDomainStatus, loading } = useDomains();
   const { toast } = useToast();
   
   const [customDomain, setCustomDomain] = useState(website.domain || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [domainStatus, setDomainStatus] = useState<any>(null);
+  const [domainStatus, setDomainStatus] = useState<DomainStatus | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [domainInstructions, setDomainInstructions] = useState<any>(null);
+  const [domainInstructions, setDomainInstructions] = useState<DomainInstructions | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+
+  const checkDomainStatus = useCallback(async (domain: string) => {
+      setCheckingStatus(true);
+      const result = await getDomainStatus(domain);
+      setCheckingStatus(false);
+      
+      // Use a type assertion to inform TypeScript about the expected structure
+      if (result.success && (result.data as { status?: DomainStatus })?.status) {
+        setDomainStatus((result.data as { status: DomainStatus }).status);
+      }
+    }, [getDomainStatus]);
 
   useEffect(() => {
     if (website.domain) {
       checkDomainStatus(website.domain);
     }
-  }, [website.domain]);
+  }, [website.domain, checkDomainStatus]);
 
   const validateDomain = () => {
     if (!customDomain) {
@@ -58,8 +91,13 @@ const DomainSettings: React.FC<DomainSettingsProps> = ({ website, onClose }) => 
         description: result.message,
       });
       
-      if (result.data?.domainInstructions) {
-        setDomainInstructions(result.data.domainInstructions);
+      if (
+        result.data &&
+        typeof result.data === 'object' &&
+        'domainInstructions' in result.data &&
+        (result.data as { domainInstructions?: DomainInstructions }).domainInstructions
+      ) {
+        setDomainInstructions((result.data as { domainInstructions: DomainInstructions }).domainInstructions);
         setShowInstructions(true);
       }
     } else {
@@ -93,16 +131,6 @@ const DomainSettings: React.FC<DomainSettingsProps> = ({ website, onClose }) => 
         description: result.error,
         variant: "destructive",
       });
-    }
-  };
-
-  const checkDomainStatus = async (domain: string) => {
-    setCheckingStatus(true);
-    const result = await getDomainStatus(domain);
-    setCheckingStatus(false);
-    
-    if (result.success && result.data?.status) {
-      setDomainStatus(result.data.status);
     }
   };
 
@@ -249,7 +277,7 @@ const DomainSettings: React.FC<DomainSettingsProps> = ({ website, onClose }) => 
                         </span>
                       </div>
                       
-                      {domainStatus.ssl.configured && (
+                      {domainStatus.ssl.validUntil && (
                         <div className="text-xs text-gray-500">
                           SSL certificate valid until {new Date(domainStatus.ssl.validUntil).toLocaleDateString()}
                         </div>
@@ -323,7 +351,7 @@ const DomainSettings: React.FC<DomainSettingsProps> = ({ website, onClose }) => 
                 </h5>
                 
                 <ol className="space-y-2 text-sm text-blue-700 list-decimal pl-5 mb-4">
-                  {domainInstructions.instructions.steps.map((step: string, index: number) => (
+                  {domainInstructions.instructions.steps.map((step, index) => (
                     <li key={index}>{step}</li>
                   ))}
                 </ol>
@@ -342,7 +370,7 @@ const DomainSettings: React.FC<DomainSettingsProps> = ({ website, onClose }) => 
                         </tr>
                       </thead>
                       <tbody>
-                        {domainInstructions.dnsRecords.map((record: any, index: number) => (
+                        {domainInstructions.dnsRecords.map((record, index) => (
                           <tr key={index} className="border-t border-gray-100">
                             <td className="px-3 py-2 font-medium">{record.type}</td>
                             <td className="px-3 py-2">{record.name}</td>

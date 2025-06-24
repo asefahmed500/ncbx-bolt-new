@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
+import { User, Session } from '@supabase/supabase-js';
 
-export interface AuthState {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  error: string | null;
-}
+// Global state to prevent race conditions
+const globalAuthState = {
+  initialized: false,
+  initializing: false,
+  subscription: null as { unsubscribe: () => void } | null,
+  lastSession: null as Session | null,
+  referenceCount: 0,
+};
 
-export interface AuthResult {
+interface AuthResult {
   success: boolean;
   error?: string;
   message?: string;
@@ -18,243 +20,103 @@ export interface AuthResult {
 }
 
 export const useAuth = () => {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    session: null,
+  const [authState, setAuthState] = useState({
+    user: null as User | null,
+    session: null as Session | null,
     loading: true,
-    error: null
+    error: null as string | null,
   });
 
-  const { setUser, setCurrentView } = useAppStore();
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          setAuthState(prev => ({ ...prev, error: error.message, loading: false }));
-          return;
-        }
+  const handleUserSession = useCallback(async (user: User | null, session: Session | null = null) => {
+    if (!mountedRef.current) return;
 
-        if (session?.user) {
-          await handleUserSession(session.user);
-        }
-
-        setAuthState(prev => ({
-          ...prev,
-          user: session?.user || null,
-          session,
-          loading: false
-        }));
-      } catch (error) {
-        console.error('Error in getInitialSession:', error);
-        setAuthState(prev => ({ 
-          ...prev, 
-          error: 'Failed to initialize authentication', 
-          loading: false 
-        }));
+    const { setUser, setCurrentView, currentView } = useAppStore.getState();
+    
+    if (!user) {
+      setUser(null);
+      // Only change view if we're not already on landing or auth
+      if (!['landing', 'auth'].includes(currentView)) {
+        setCurrentView('landing');
       }
-    };
+      setAuthState(prev => ({
+        ...prev,
+        user: null,
+        session: null,
+        loading: false,
+        error: null,
+      }));
+      return;
+    }
 
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        
-        try {
-          if (session?.user) {
-            await handleUserSession(session.user);
-          } else {
-            setUser(null);
-          }
-
-          setAuthState(prev => ({
-            ...prev,
-            user: session?.user || null,
-            session,
-            loading: false,
-            error: null
-          }));
-
-          // Handle different auth events
-          switch (event) {
-            case 'SIGNED_IN':
-              if (session) {
-                setCurrentView('dashboard');
-              }
-              break;
-            case 'SIGNED_OUT':
-              setCurrentView('landing');
-              break;
-            case 'PASSWORD_RECOVERY':
-              // Handle password recovery if needed
-              break;
-            case 'TOKEN_REFRESHED':
-              // Token was refreshed successfully
-              break;
-            case 'USER_UPDATED':
-              // User data was updated
-              if (session?.user) {
-                await handleUserSession(session.user);
-              }
-              break;
-          }
-        } catch (error) {
-          console.error('Error handling auth state change:', error);
-          setAuthState(prev => ({
-            ...prev,
-            error: 'Authentication error occurred',
-            loading: false
-          }));
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [setUser, setCurrentView]);
-
-  const handleUserSession = async (user: User): Promise<void> => {
     try {
-      // Check if profile exists
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
-        throw new Error('Failed to fetch user profile');
-      }
-
-      // If profile doesn't exist, create it
-      if (!profile) {
-        const profileData = {
-          id: user.id,
-          email: user.email || '',
-          full_name: user.user_metadata?.full_name || 
-                    user.user_metadata?.name || 
-                    user.user_metadata?.display_name || 
-                    '',
-          avatar_url: user.user_metadata?.avatar_url || 
-                     user.user_metadata?.picture || 
-                     null,
-          plan: 'free' as const,
-          role: user.email === 'admin@gmail.com' ? 'admin' as const : 'user' as const
-        };
-
-        const { data: newProfile, error: insertError } = await supabase
+      let profile = null;
+      try {
+        const { data, error } = await supabase
           .from('profiles')
-          .insert(profileData)
-          .select()
+          .select('*')
+          .eq('id', user.id)
           .single();
 
-        if (insertError) {
-          // Handle race condition - profile might have been created by another session
-          if (insertError.code === '23505') {
-            console.log('Profile already exists, fetching existing profile...');
-            const { data: existingProfile, error: fetchError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', user.id)
-              .single();
-
-            if (fetchError) {
-              console.error('Error fetching existing profile:', fetchError);
-              throw new Error('Failed to fetch existing profile');
-            }
-
-            setUserFromProfile(existingProfile, user);
-          } else {
-            console.error('Error creating profile:', insertError);
-            throw new Error('Failed to create user profile');
-          }
-        } else {
-          setUserFromProfile(newProfile, user);
+        if (error && !['PGRST116', '42P01'].includes(error.code)) {
+          console.warn('Profile fetch warning:', error);
+        } else if (data) {
+          profile = data;
         }
-      } else {
-        // Profile exists, update it with latest auth data if needed
-        const shouldUpdate = 
-          profile.email !== user.email ||
-          (!profile.full_name && (user.user_metadata?.full_name || user.user_metadata?.name)) ||
-          (!profile.avatar_url && (user.user_metadata?.avatar_url || user.user_metadata?.picture)) ||
-          (user.email === 'admin@gmail.com' && profile.role !== 'admin');
-
-        if (shouldUpdate) {
-          const updates: any = {};
-          if (profile.email !== user.email) updates.email = user.email;
-          if (!profile.full_name && (user.user_metadata?.full_name || user.user_metadata?.name)) {
-            updates.full_name = user.user_metadata?.full_name || user.user_metadata?.name;
-          }
-          if (!profile.avatar_url && (user.user_metadata?.avatar_url || user.user_metadata?.picture)) {
-            updates.avatar_url = user.user_metadata?.avatar_url || user.user_metadata?.picture;
-          }
-          // Ensure admin@gmail.com always has admin role
-          if (user.email === 'admin@gmail.com' && profile.role !== 'admin') {
-            updates.role = 'admin';
-            updates.plan = 'business';
-          }
-
-          const { data: updatedProfile, error: updateError } = await supabase
-            .from('profiles')
-            .update(updates)
-            .eq('id', user.id)
-            .select()
-            .single();
-
-          if (updateError) {
-            console.error('Error updating profile:', updateError);
-            // Still use the existing profile if update fails
-            setUserFromProfile(profile, user);
-          } else {
-            setUserFromProfile(updatedProfile, user);
-          }
-        } else {
-          setUserFromProfile(profile, user);
-        }
+      } catch (err) {
+        console.warn('Profile fetch failed:', err);
       }
-    } catch (error) {
-      console.error('Error handling user session:', error);
-      // Set basic user info even if profile operations fail
-      setUser({
+
+      if (!mountedRef.current) return;
+
+      const appUser = {
         id: user.id,
-        name: user.user_metadata?.full_name || 
-              user.user_metadata?.name || 
-              user.user_metadata?.display_name || 
+        name: profile?.full_name ||
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split('@')[0] ||
               'User',
         email: user.email || '',
-        avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
-        plan: 'free',
-        role: user.email === 'admin@gmail.com' ? 'admin' : 'user'
-      });
+        avatar: profile?.avatar_url ||
+                user.user_metadata?.avatar_url ||
+                user.user_metadata?.picture ||
+                null,
+        plan: (profile?.plan as 'free' | 'pro' | 'business') || 'free',
+        role: (profile?.role as 'user' | 'admin') || 
+              (user.email === 'asefahmed500@gmail.com' ? 'admin' : 'user'),
+      };
+
+      setUser(appUser);
+      
+      // Only redirect to dashboard if user is on landing or auth pages
+      const currentState = useAppStore.getState();
+      if (['landing', 'auth'].includes(currentState.currentView)) {
+        setCurrentView('dashboard');
+      }
+      
+      setAuthState(prev => ({
+        ...prev,
+        user,
+        session,
+        loading: false,
+        error: null,
+      }));
+    } catch (err) {
+      console.error('Error handling user session:', err);
+      if (!mountedRef.current) return;
+      
+      setUser(null);
+      setCurrentView('landing');
+      setAuthState(prev => ({
+        ...prev,
+        error: 'Failed to load user profile',
+        loading: false,
+      }));
     }
-  };
+  }, []);
 
-  const setUserFromProfile = (profile: any, user: User) => {
-    setUser({
-      id: user.id,
-      name: profile?.full_name || 
-            user.user_metadata?.full_name || 
-            user.user_metadata?.name || 
-            user.user_metadata?.display_name || 
-            'User',
-      email: user.email || profile?.email || '',
-      avatar: profile?.avatar_url || 
-              user.user_metadata?.avatar_url || 
-              user.user_metadata?.picture,
-      plan: profile?.plan || 'free',
-      role: profile?.role || (user.email === 'admin@gmail.com' ? 'admin' : 'user')
-    });
-  };
-
-  const signUp = async (email: string, password: string, fullName?: string): Promise<AuthResult> => {
+  const signUp = useCallback(async (email: string, password: string, fullName?: string): Promise<AuthResult> => {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -263,245 +125,267 @@ export const useAuth = () => {
         password,
         options: {
           data: {
-            full_name: fullName || '',
-            name: fullName || ''
+            full_name: fullName,
+            name: fullName,
           }
         }
       });
 
       if (error) {
-        setAuthState(prev => ({ ...prev, error: error.message, loading: false }));
+        setAuthState(prev => ({ ...prev, loading: false, error: error.message }));
         return { success: false, error: error.message };
       }
 
       if (data.user && !data.session) {
-        // Email confirmation required
         setAuthState(prev => ({ ...prev, loading: false }));
-        return { 
-          success: true, 
+        return {
+          success: true,
           needsVerification: true,
-          message: 'Please check your email for a confirmation link to complete your registration.' 
+          message: 'Please check your email and click the confirmation link to complete your registration.'
         };
       }
 
-      if (data.user && data.session) {
-        // User is immediately signed in (email confirmation disabled)
-        setAuthState(prev => ({ ...prev, loading: false }));
-        return { success: true };
+      if (data.session) {
+        await handleUserSession(data.user, data.session);
+        return { success: true, message: 'Account created successfully!' };
       }
 
-      setAuthState(prev => ({ ...prev, loading: false }));
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during signup';
-      setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }));
+      return { success: false, error: 'Unknown error occurred' };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setAuthState(prev => ({ ...prev, loading: false, error: errorMessage }));
       return { success: false, error: errorMessage };
     }
-  };
+  }, [handleUserSession]);
 
-  const signIn = async (email: string, password: string): Promise<AuthResult> => {
+  const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }));
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
       });
 
       if (error) {
-        let errorMessage = error.message;
-        
-        // Provide more user-friendly error messages
-        if (error.message.includes('Invalid login credentials')) {
-          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (error.message.includes('Email not confirmed')) {
-          errorMessage = 'Please check your email and click the confirmation link before signing in.';
-        } else if (error.message.includes('Too many requests')) {
-          errorMessage = 'Too many login attempts. Please wait a moment before trying again.';
-        }
-
-        setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }));
-        return { success: false, error: errorMessage };
-      }
-
-      setAuthState(prev => ({ ...prev, loading: false }));
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during sign in';
-      setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }));
-      return { success: false, error: errorMessage };
-    }
-  };
-
-  const signInWithGoogle = async (): Promise<AuthResult> => {
-    try {
-      setAuthState(prev => ({ ...prev, loading: true, error: null }));
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message.includes('OAuth')) {
-          errorMessage = 'Google sign-in is not properly configured. Please contact support.';
-        }
-
-        setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }));
-        return { success: false, error: errorMessage };
-      }
-
-      // OAuth will redirect, so we don't set loading to false here
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred with Google sign-in';
-      setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }));
-      return { success: false, error: errorMessage };
-    }
-  };
-
-  const signOut = async (): Promise<AuthResult> => {
-    try {
-      setAuthState(prev => ({ ...prev, loading: true, error: null }));
-
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        setAuthState(prev => ({ ...prev, error: error.message, loading: false }));
+        setAuthState(prev => ({ ...prev, loading: false, error: error.message }));
         return { success: false, error: error.message };
       }
 
-      // Clear user state and redirect
-      setUser(null);
-      setCurrentView('landing');
-      setAuthState(prev => ({ ...prev, loading: false }));
-      
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during sign out';
-      setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }));
+      if (data.session && data.user) {
+        await handleUserSession(data.user, data.session);
+        return { success: true, message: 'Signed in successfully!' };
+      }
+
+      return { success: false, error: 'Invalid credentials' };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setAuthState(prev => ({ ...prev, loading: false, error: errorMessage }));
       return { success: false, error: errorMessage };
     }
-  };
+  }, [handleUserSession]);
 
-  const resetPassword = async (email: string): Promise<AuthResult> => {
+  const signInWithGoogle = useCallback(async (): Promise<AuthResult> => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`
+      setAuthState(prev => ({ ...prev, loading: true, error: null }));
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
       });
 
       if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message.includes('rate limit')) {
-          errorMessage = 'Too many password reset requests. Please wait before trying again.';
-        } else if (error.message.includes('not found')) {
-          errorMessage = 'No account found with this email address.';
-        }
-        
-        return { success: false, error: errorMessage };
+        setAuthState(prev => ({ ...prev, loading: false, error: error.message }));
+        return { success: false, error: error.message };
       }
 
-      return { 
-        success: true, 
-        message: 'Password reset email sent! Please check your inbox and follow the instructions.' 
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      return { success: true };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setAuthState(prev => ({ ...prev, loading: false, error: errorMessage }));
       return { success: false, error: errorMessage };
     }
-  };
+  }, []);
 
-  const updatePassword = async (newPassword: string): Promise<AuthResult> => {
+  const resetPassword = useCallback(async (email: string): Promise<AuthResult> => {
     try {
-      const { error } = await supabase.auth.updateUser({
+      setAuthState(prev => ({ ...prev, loading: true, error: null }));
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      setAuthState(prev => ({ ...prev, loading: false }));
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        message: 'Password reset email sent. Please check your inbox.'
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setAuthState(prev => ({ ...prev, loading: false, error: errorMessage }));
+      return { success: false, error: errorMessage };
+    }
+  }, []);
+
+  const resendConfirmation = useCallback(async (email: string): Promise<AuthResult> => {
+    try {
+      setAuthState(prev => ({ ...prev, loading: true, error: null }));
+
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+
+      setAuthState(prev => ({ ...prev, loading: false }));
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        message: 'Confirmation email sent. Please check your inbox.'
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setAuthState(prev => ({ ...prev, loading: false, error: errorMessage }));
+      return { success: false, error: errorMessage };
+    }
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string): Promise<AuthResult> => {
+    try {
+      setAuthState(prev => ({ ...prev, loading: true, error: null }));
+
+      const { data, error } = await supabase.auth.updateUser({
         password: newPassword
       });
 
       if (error) {
+        setAuthState(prev => ({ ...prev, loading: false, error: error.message }));
         return { success: false, error: error.message };
       }
 
-      return { success: true, message: 'Password updated successfully!' };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      if (data.user) {
+        await handleUserSession(data.user);
+        return { success: true, message: 'Password updated successfully!' };
+      }
+
+      return { success: false, error: 'Failed to update password' };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setAuthState(prev => ({ ...prev, loading: false, error: errorMessage }));
       return { success: false, error: errorMessage };
     }
-  };
+  }, [handleUserSession]);
 
-  const updateProfile = async (updates: {
-    full_name?: string;
-    avatar_url?: string;
-  }): Promise<AuthResult> => {
+  const signOut = useCallback(async () => {
     try {
-      if (!authState.user) {
-        return { success: false, error: 'No user logged in' };
-      }
-
-      // Update auth metadata
-      const { error: authError } = await supabase.auth.updateUser({
-        data: updates
-      });
-
-      if (authError) {
-        return { success: false, error: authError.message };
-      }
-
-      // Update profile table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', authState.user.id);
-
-      if (profileError) {
-        return { success: false, error: profileError.message };
-      }
-
-      return { success: true, message: 'Profile updated successfully!' };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      return { success: false, error: errorMessage };
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      const { logout } = useAppStore.getState();
+      logout();
+      
+      console.log('✅ User signed out successfully');
+    } catch (err) {
+      console.error('❌ Sign out error:', err);
+      
+      const { logout } = useAppStore.getState();
+      logout();
+      
+      throw err;
     }
-  };
+  }, []);
 
-  const resendConfirmation = async (email: string): Promise<AuthResult> => {
+  const initializeAuth = useCallback(async () => {
+    if (globalAuthState.initializing) {
+      return;
+    }
+
+    globalAuthState.initializing = true;
+    console.log('🔍 Initializing auth...');
+
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) throw error;
+      
+      globalAuthState.lastSession = session;
+      
+      if (session?.user) {
+        console.log('✅ Found existing session');
+        await handleUserSession(session.user, session);
+      } else {
+        console.log('ℹ️ No session found');
+        await handleUserSession(null);
       }
 
-      return { 
-        success: true, 
-        message: 'Confirmation email sent! Please check your inbox.' 
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      return { success: false, error: errorMessage };
+      if (!globalAuthState.subscription) {
+        globalAuthState.subscription = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log(`🔍 Auth event: ${event}`);
+          
+          if (session === globalAuthState.lastSession) {
+            return;
+          }
+          
+          globalAuthState.lastSession = session;
+          await handleUserSession(session?.user || null, session);
+        }).data.subscription;
+      }
+
+      globalAuthState.initialized = true;
+    } catch (err) {
+      console.error('❌ Auth initialization error:', err);
+      await handleUserSession(null);
+    } finally {
+      globalAuthState.initializing = false;
     }
-  };
+  }, [handleUserSession]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    globalAuthState.referenceCount++;
+
+    const initialize = async () => {
+      if (!globalAuthState.initialized && !globalAuthState.initializing) {
+        await initializeAuth();
+      } else if (globalAuthState.initialized) {
+        const { data: { session } } = await supabase.auth.getSession();
+        await handleUserSession(session?.user || null, session);
+      }
+    };
+
+    initialize();
+
+    return () => {
+      mountedRef.current = false;
+      globalAuthState.referenceCount--;
+
+      if (globalAuthState.referenceCount === 0 && globalAuthState.subscription) {
+        globalAuthState.subscription.unsubscribe();
+        globalAuthState.subscription = null;
+        globalAuthState.initialized = false;
+      }
+    };
+  }, [initializeAuth, handleUserSession]);
 
   return {
     ...authState,
+    isAuthenticated: !!authState.user,
     signUp,
     signIn,
     signInWithGoogle,
-    signOut,
     resetPassword,
+    resendConfirmation,
     updatePassword,
-    updateProfile,
-    resendConfirmation
+    signOut,
   };
 };

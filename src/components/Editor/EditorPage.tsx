@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Monitor, Tablet, Smartphone, Eye, Save, Undo, Redo, 
   Settings, Users, Share2, ArrowLeft, CheckCircle, AlertCircle,
-  Layers, MessageSquare, Globe, Code, Zap, Rocket
+  Layers, Globe, Rocket
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
@@ -16,7 +16,13 @@ import VersionHistoryPanel from './VersionHistoryPanel';
 import DomainSettings from './DomainSettings';
 import DeploymentPanel from './DeploymentPanel';
 import { useToast } from '../ui/use-toast';
-import MadeWithBolt from '../MadeWithBolt';
+
+interface EditorContent extends Record<string, unknown> {
+  // Define a proper type for your editor content
+  components?: unknown[];
+  styles?: Record<string, unknown>;
+  layout?: Record<string, unknown>;
+}
 
 const EditorPage: React.FC = () => {
   const { 
@@ -26,12 +32,10 @@ const EditorPage: React.FC = () => {
     setEditorMode, 
     togglePreviewMode,
     setCurrentView,
-    setCurrentWebsite,
-    user
+    setCurrentWebsite
   } = useAppStore();
 
   const { 
-    updateWebsite, 
     publishWebsite, 
     unpublishWebsite, 
     saveWebsiteVersion 
@@ -50,8 +54,25 @@ const EditorPage: React.FC = () => {
   const [saveMessage, setSaveMessage] = useState('');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [editorContent, setEditorContent] = useState<any>({});
+  const [editorContent, setEditorContent] = useState<EditorContent>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  const handleAutoSave = useCallback(async () => {
+    if (!currentWebsite || !hasUnsavedChanges) return;
+
+    try {
+      setIsSaving(true);
+      await saveWebsiteVersion(currentWebsite.id, editorContent);
+      setLastSaved(new Date());
+      setSaveMessage('Auto-saved');
+      setHasUnsavedChanges(false);
+      setTimeout(() => setSaveMessage(''), 2000);
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [currentWebsite, hasUnsavedChanges, editorContent, saveWebsiteVersion]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -62,7 +83,7 @@ const EditorPage: React.FC = () => {
     }, 30000); // Auto-save every 30 seconds
 
     return () => clearInterval(autoSaveInterval);
-  }, [currentWebsite, hasUnsavedChanges, editorContent]);
+  }, [currentWebsite, hasUnsavedChanges, handleAutoSave]);
 
   // Prompt before leaving with unsaved changes
   useEffect(() => {
@@ -78,26 +99,9 @@ const EditorPage: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const handleContentChange = (newContent: any) => {
+  const handleContentChange = (newContent: EditorContent) => {
     setEditorContent(newContent);
     setHasUnsavedChanges(true);
-  };
-
-  const handleAutoSave = async () => {
-    if (!currentWebsite || !hasUnsavedChanges) return;
-
-    try {
-      setIsSaving(true);
-      await saveWebsiteVersion(currentWebsite.id, editorContent, 'Auto-save');
-      setLastSaved(new Date());
-      setSaveMessage('Auto-saved');
-      setHasUnsavedChanges(false);
-      setTimeout(() => setSaveMessage(''), 2000);
-    } catch (error) {
-      console.error('Auto-save failed:', error);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleManualSave = async () => {
@@ -107,7 +111,7 @@ const EditorPage: React.FC = () => {
       setIsSaving(true);
       setSaveMessage('Saving...');
       
-      await saveWebsiteVersion(currentWebsite.id, editorContent, 'Manual save');
+      await saveWebsiteVersion(currentWebsite.id, editorContent);
       
       setLastSaved(new Date());
       setSaveMessage('Saved successfully');
@@ -135,7 +139,7 @@ const EditorPage: React.FC = () => {
     }
   };
 
-  const handlePublish = async (customDomain?: string) => {
+  const handlePublish = async () => {
     if (!currentWebsite) return;
 
     try {
@@ -143,7 +147,7 @@ const EditorPage: React.FC = () => {
       
       // Save current version first
       if (hasUnsavedChanges) {
-        await saveWebsiteVersion(currentWebsite.id, editorContent, 'Pre-publish save');
+        await saveWebsiteVersion(currentWebsite.id, editorContent);
         setHasUnsavedChanges(false);
       }
       
@@ -160,11 +164,11 @@ const EditorPage: React.FC = () => {
           description: "Your website is now in draft mode",
         });
       } else {
-        const updatedWebsite = await publishWebsite(currentWebsite.id, customDomain);
+        const updatedWebsite = await publishWebsite(currentWebsite.id);
         setCurrentWebsite({
           ...currentWebsite,
           status: 'published',
-          domain: updatedWebsite.domain
+          domain: updatedWebsite.domain || undefined
         });
         setSaveMessage('Website published successfully!');
         
@@ -569,8 +573,6 @@ const EditorPage: React.FC = () => {
           <div>P: Preview</div>
         </div>
       </div>
-
-      {/* Made with Bolt button is added in the App component */}
     </div>
   );
 };

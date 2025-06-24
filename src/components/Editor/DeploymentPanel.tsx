@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Rocket, CheckCircle, AlertCircle, Loader, ExternalLink, Copy, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDeployment, DeploymentStatus } from '../../hooks/useDeployment';
@@ -18,23 +18,7 @@ const DeploymentPanel: React.FC<DeploymentPanelProps> = ({ websiteId, onClose })
   const [isDeploying, setIsDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load latest deployment on mount
-  useEffect(() => {
-    loadLatestDeployment();
-  }, [websiteId]);
-
-  // Poll for status updates when deploying
-  useEffect(() => {
-    if (deploymentId && (isDeploying || deploymentStatus?.status === 'in_progress')) {
-      const interval = setInterval(() => {
-        checkDeploymentStatus(deploymentId);
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [deploymentId, isDeploying, deploymentStatus]);
-
-  const loadLatestDeployment = async () => {
+  const loadLatestDeployment = useCallback(async () => {
     try {
       const deployment = await getLatestDeployment(websiteId);
       if (deployment) {
@@ -44,9 +28,9 @@ const DeploymentPanel: React.FC<DeploymentPanelProps> = ({ websiteId, onClose })
     } catch (err) {
       console.error('Error loading latest deployment:', err);
     }
-  };
+  }, [websiteId, getLatestDeployment]);
 
-  const checkDeploymentStatus = async (id: string) => {
+  const checkDeploymentStatus = useCallback(async (id: string) => {
     try {
       const status = await getDeploymentStatus(id);
       if (status) {
@@ -72,7 +56,23 @@ const DeploymentPanel: React.FC<DeploymentPanelProps> = ({ websiteId, onClose })
     } catch (err) {
       console.error('Error checking deployment status:', err);
     }
-  };
+  }, [getDeploymentStatus, toast]);
+
+  // Load latest deployment on mount
+  useEffect(() => {
+    loadLatestDeployment();
+  }, [loadLatestDeployment]);
+
+  // Poll for status updates when deploying
+  useEffect(() => {
+    if (deploymentId && (isDeploying || deploymentStatus?.status === 'in_progress')) {
+      const interval = setInterval(() => {
+        checkDeploymentStatus(deploymentId);
+      }, 2000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [deploymentId, isDeploying, deploymentStatus, checkDeploymentStatus]);
 
   const handleDeploy = async () => {
     try {
@@ -81,8 +81,8 @@ const DeploymentPanel: React.FC<DeploymentPanelProps> = ({ websiteId, onClose })
       
       const result = await deployWebsite(websiteId);
       
-      if (result.success) {
-        setDeploymentId(result.data?.deploymentId);
+      if (result.success && result.data?.deploymentId) {
+        setDeploymentId(result.data.deploymentId);
         toast({
           title: "Deployment started",
           description: "Your website is being deployed",
@@ -195,7 +195,11 @@ const DeploymentPanel: React.FC<DeploymentPanelProps> = ({ websiteId, onClose })
                         </span>
                         <div className="flex items-center space-x-2 ml-2 flex-shrink-0">
                           <button
-                            onClick={() => copyToClipboard(deploymentStatus.deployment_url!)}
+                            onClick={() => {
+                              if (deploymentStatus.deployment_url) {
+                                copyToClipboard(deploymentStatus.deployment_url);
+                              }
+                            }}
                             className="p-1 hover:bg-gray-100 rounded"
                             title="Copy URL"
                           >

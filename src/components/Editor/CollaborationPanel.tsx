@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, MessageCircle, Eye, Plus, Check, X, Clock, User } from 'lucide-react';
+import { Users, MessageCircle, Plus, Check, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCollaboration } from '../../hooks/useCollaboration';
 import { useAppStore } from '../../store/useAppStore';
@@ -13,7 +13,6 @@ const CollaborationPanel: React.FC<CollaborationPanelProps> = ({ websiteId }) =>
   const {
     activeSessions,
     comments,
-    loading,
     addComment,
     resolveComment
   } = useCollaboration(websiteId);

@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { useToast } from '../ui/use-toast';
 
 const AuthPage: React.FC = () => {
@@ -139,7 +140,7 @@ const AuthPage: React.FC = () => {
           });
         }
       }
-    } catch (err) {
+    } catch {
       setErrors({ general: 'An unexpected error occurred' });
       toast({
         title: "Error",

@@ -196,6 +196,7 @@ const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({ isOpen, onClose }) =>
         try {
           const importedTheme = JSON.parse(e.target?.result as string);
           setTheme(importedTheme);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (error) {
           console.error('Invalid theme file');
         }

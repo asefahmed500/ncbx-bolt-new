@@ -1,22 +1,29 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
+// Environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+  throw new Error(
+    "Missing Supabase environment variables. Please check your .env file."
+  );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+
+
+// Exported Supabase client
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce'
-  }
+    flowType: "pkce", // Secure flow for public clients
+  },
 });
 
-// Database types
+// Supabase Database Types
 export interface Database {
   public: {
     Tables: {
@@ -26,7 +33,8 @@ export interface Database {
           email: string;
           full_name: string | null;
           avatar_url: string | null;
-          plan: 'free' | 'pro' | 'business';
+          plan: "free" | "pro" | "business";
+          role: "user" | "admin"; // ✅ REQUIRED (not optional)
           created_at: string;
           updated_at: string;
         };
@@ -35,7 +43,8 @@ export interface Database {
           email: string;
           full_name?: string | null;
           avatar_url?: string | null;
-          plan?: 'free' | 'pro' | 'business';
+          plan?: "free" | "pro" | "business";
+          role?: "user" | "admin"; // ✅ Optional for inserts (has default)
           created_at?: string;
           updated_at?: string;
         };
@@ -44,11 +53,13 @@ export interface Database {
           email?: string;
           full_name?: string | null;
           avatar_url?: string | null;
-          plan?: 'free' | 'pro' | 'business';
+          plan?: "free" | "pro" | "business";
+          role?: "user" | "admin"; // ✅ Optional for updates
           created_at?: string;
           updated_at?: string;
         };
       };
+
       websites: {
         Row: {
           id: string;
@@ -56,7 +67,7 @@ export interface Database {
           name: string;
           description: string | null;
           domain: string | null;
-          status: 'draft' | 'published';
+          status: "draft" | "published";
           template: string;
           thumbnail: string | null;
           created_at: string;
@@ -68,7 +79,7 @@ export interface Database {
           name: string;
           description?: string | null;
           domain?: string | null;
-          status?: 'draft' | 'published';
+          status?: "draft" | "published";
           template: string;
           thumbnail?: string | null;
           created_at?: string;
@@ -80,7 +91,7 @@ export interface Database {
           name?: string;
           description?: string | null;
           domain?: string | null;
-          status?: 'draft' | 'published';
+          status?: "draft" | "published";
           template?: string;
           thumbnail?: string | null;
           created_at?: string;

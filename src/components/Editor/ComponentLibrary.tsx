@@ -262,31 +262,35 @@ const ComponentLibrary: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
-              draggable
-              onDragStart={(e) => handleDragStart(e, component)}
-              className="group bg-gray-50 hover:bg-blue-50 rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all border border-transparent hover:border-blue-200 hover:shadow-sm"
+              className="relative group bg-gray-50 hover:bg-blue-50 rounded-lg p-3 transition-all border border-transparent hover:border-blue-200 hover:shadow-sm"
             >
-              <div className="flex items-start space-x-3">
-                <div className="text-gray-600 group-hover:text-blue-600 transition-colors flex-shrink-0 mt-1">
-                  {component.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-medium text-gray-900 group-hover:text-blue-900 truncate">
-                      {component.name}
-                    </h4>
-                    <span className="text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded-full">
-                      {component.category}
-                    </span>
+              <div
+                draggable
+                onDragStart={(e: React.DragEvent) => handleDragStart(e, component)}
+                className="cursor-grab active:cursor-grabbing"
+              >
+                <div className="flex items-start space-x-3">
+                  <div className="text-gray-600 group-hover:text-blue-600 transition-colors flex-shrink-0 mt-1">
+                    {component.icon}
                   </div>
-                  <p className="text-xs text-gray-500 group-hover:text-blue-600 line-clamp-2 mb-2">
-                    {component.description}
-                  </p>
-                  {component.preview && (
-                    <div className="text-xs text-gray-400 font-mono bg-gray-100 px-2 py-1 rounded">
-                      {component.preview}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-sm font-medium text-gray-900 group-hover:text-blue-900 truncate">
+                        {component.name}
+                      </h4>
+                      <span className="text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded-full">
+                        {component.category}
+                      </span>
                     </div>
-                  )}
+                    <p className="text-xs text-gray-500 group-hover:text-blue-600 line-clamp-2 mb-2">
+                      {component.description}
+                    </p>
+                    {component.preview && (
+                      <div className="text-xs text-gray-400 font-mono bg-gray-100 px-2 py-1 rounded">
+                        {component.preview}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               

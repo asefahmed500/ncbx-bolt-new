@@ -138,7 +138,7 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
     setDropTarget(null);
   };
 
-  const handleDrop = (e: React.DragEvent, id: string) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (draggedItem && dropTarget) {
       onReorderLayers(draggedItem, dropTarget.id, dropTarget.position);
@@ -159,22 +159,24 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
           <div className="h-0.5 bg-blue-500 mx-2 rounded"></div>
         )}
         
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: isDragging ? 0.5 : 1, x: 0 }}
-          className={`flex items-center space-x-2 p-2 mx-2 rounded-lg transition-all cursor-pointer ${
-            isSelected 
-              ? 'bg-blue-100 border border-blue-300' 
-              : 'hover:bg-gray-50 border border-transparent'
-          }`}
-          style={{ paddingLeft: `${8 + depth * 16}px` }}
+        <div
           draggable
-          onDragStart={(e) => handleDragStart(e, layer.id)}
+          onDragStart={(e: React.DragEvent) => handleDragStart(e, layer.id)}
           onDragOver={(e) => handleDragOver(e, layer.id)}
           onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, layer.id)}
-          onClick={() => onSelectComponent(layer.id)}
+          onDrop={handleDrop}
         >
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: isDragging ? 0.5 : 1, x: 0 }}
+            className={`flex items-center space-x-2 p-2 mx-2 rounded-lg transition-all cursor-pointer ${
+              isSelected 
+                ? 'bg-blue-100 border border-blue-300' 
+                : 'hover:bg-gray-50 border border-transparent'
+            }`}
+            style={{ paddingLeft: `${8 + depth * 16}px` }}
+            onClick={() => onSelectComponent(layer.id)}
+          >
           {/* Expand/Collapse Button */}
           {layer.children && layer.children.length > 0 && (
             <button
@@ -262,6 +264,7 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
             </button>
           </div>
         </motion.div>
+        </div>
         
         {/* Drop indicator below */}
         {isDropTarget && dropTarget?.position === 'below' && (

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, ArrowLeft, RotateCcw, Check, X, AlertCircle, Loader } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Clock, ArrowLeft, RotateCcw, AlertCircle, Loader } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useWebsites, WebsiteVersion } from '../../hooks/useWebsites';
 
@@ -13,14 +13,10 @@ const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({ websiteId, on
   const [versions, setVersions] = useState<WebsiteVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const [, setSelectedVersion] = useState<string | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
 
-  useEffect(() => {
-    fetchVersions();
-  }, [websiteId]);
-
-  const fetchVersions = async () => {
+  const fetchVersions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -32,7 +28,11 @@ const VersionHistoryPanel: React.FC<VersionHistoryPanelProps> = ({ websiteId, on
     } finally {
       setLoading(false);
     }
-  };
+  }, [getWebsiteVersions, websiteId]);
+
+  useEffect(() => {
+    fetchVersions();
+  }, [fetchVersions, websiteId]);
 
   const handleRestore = (versionId: string) => {
     setSelectedVersion(versionId);

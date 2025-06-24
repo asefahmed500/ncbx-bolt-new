@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 export interface StripeResult {
   success: boolean;
   error?: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface SubscriptionPlan {

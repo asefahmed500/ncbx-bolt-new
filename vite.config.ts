@@ -6,7 +6,11 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    // Remove lucide-react from exclude and add to include instead
+    include: [
+      'react-virtuoso',
+      'lucide-react'
+    ]
   },
   resolve: {
     alias: {

@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Users, Clock, ArrowUp, ArrowDown, Smartphone, Laptop, Tablet } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useAnalytics, AnalyticsSummary } from '../../hooks/useAnalytics';
+import { useAnalytics } from '../../hooks/useAnalytics';
 
 interface WebsiteAnalyticsProps {
   websiteId: string;
 }
 
 const WebsiteAnalytics: React.FC<WebsiteAnalyticsProps> = ({ websiteId }) => {
-  const { analytics, summary, loading, error, getAnalyticsForDateRange } = useAnalytics(websiteId);
+  const { summary, loading, error, getAnalyticsForDateRange } = useAnalytics(websiteId);
   const [timeRange, setTimeRange] = useState<'7' | '30' | '90'>('30');
 
   useEffect(() => {
     getAnalyticsForDateRange(parseInt(timeRange));
-  }, [timeRange, websiteId]);
+  }, [getAnalyticsForDateRange, timeRange, websiteId]);
 
   if (loading) {
     return (

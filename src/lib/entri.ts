@@ -5,7 +5,26 @@ export interface EntriLinksParams {
   id: string;
 }
 
-export const getEntriLinks = async (params: EntriLinksParams): Promise<any> => {
+export interface DnsRecord {
+  type: string;
+  name: string;
+  value: string;
+  ttl: number;
+}
+
+export interface EntriInstructions {
+  steps: string[];
+  verificationMethod: string;
+}
+
+export interface EntriLinksResult {
+  domain: string;
+  dnsRecords: DnsRecord[];
+  verificationStatus: string;
+  instructions: EntriInstructions;
+}
+
+export const getEntriLinks = async (params: EntriLinksParams): Promise<EntriLinksResult> => {
   // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 500));
   

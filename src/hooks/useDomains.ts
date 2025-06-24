@@ -3,11 +3,11 @@ import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { getEntriLinks } from '../lib/entri';
 
-export interface DomainResult {
+export interface DomainResult<T = unknown> {
   success: boolean;
   error?: string;
   message?: string;
-  data?: any;
+  data?: T;
 }
 
 export const useDomains = () => {

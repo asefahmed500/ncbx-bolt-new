@@ -2,11 +2,16 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 
+export interface DeploymentData {
+  deploymentId: string;
+  [key: string]: unknown;
+}
+
 export interface DeploymentResult {
   success: boolean;
   error?: string;
   message?: string;
-  data?: any;
+  data?: DeploymentData;
 }
 
 export interface DeploymentStatus {

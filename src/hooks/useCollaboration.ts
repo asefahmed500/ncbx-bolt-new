@@ -6,7 +6,7 @@ export interface UserSession {
   id: string;
   user_id: string;
   website_id: string;
-  cursor_position: any;
+  cursor_position: { x: number; y: number };
   selected_element: string | null;
   is_active: boolean;
   last_ping: string;
@@ -23,7 +23,7 @@ export interface WebsiteComment {
   user_id: string;
   element_id: string | null;
   content: string;
-  position: any;
+  position: { x: number; y: number };
   is_resolved: boolean;
   resolved_by: string | null;
   resolved_at: string | null;
@@ -71,7 +71,7 @@ export const useCollaboration = (websiteId: string | null) => {
   }, [user, websiteId]);
 
   // Update cursor position
-  const updateCursorPosition = useCallback(async (position: any) => {
+  const updateCursorPosition = useCallback(async (position: { x: number; y: number }) => {
     if (!user || !websiteId) return;
 
     try {
@@ -191,7 +191,7 @@ export const useCollaboration = (websiteId: string | null) => {
   const addComment = useCallback(async (
     elementId: string | null,
     content: string,
-    position: any = {},
+    position: { x: number; y: number } = { x: 0, y: 0 },
     parentId: string | null = null
   ): Promise<WebsiteComment | null> => {
     if (!user || !websiteId) return null;

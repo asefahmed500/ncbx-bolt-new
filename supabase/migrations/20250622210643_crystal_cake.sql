@@ -581,161 +581,191 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create RLS policies
--- Profiles policies
-DROP POLICY IF EXISTS "Users can read own profile or admins can read all" ON profiles;
-DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can update own profile or admins can update all" ON profiles;
+-- Create RLS policies with existence checks
+DO $$
+BEGIN
+  -- Profiles policies
+  DROP POLICY IF EXISTS "Users can read own profile or admins can read all" ON profiles;
+  DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+  DROP POLICY IF EXISTS "Users can update own profile or admins can update all" ON profiles;
 
-CREATE POLICY "Users can read own profile or admins can read all"
-  ON profiles FOR SELECT
-  TO authenticated
-  USING (auth.uid() = id OR is_admin());
+  CREATE POLICY "Users can read own profile or admins can read all"
+    ON profiles FOR SELECT
+    TO authenticated
+    USING (auth.uid() = id OR is_admin());
 
-CREATE POLICY "Users can insert own profile"
-  ON profiles FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = id);
+  CREATE POLICY "Users can insert own profile"
+    ON profiles FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can update own profile or admins can update all"
-  ON profiles FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = id OR is_admin())
-  WITH CHECK (auth.uid() = id OR is_admin());
+  CREATE POLICY "Users can update own profile or admins can update all"
+    ON profiles FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id OR is_admin())
+    WITH CHECK (auth.uid() = id OR is_admin());
 
--- Website collaborators policies
-CREATE POLICY "Users can read collaborations for their websites"
+  -- Website collaborators policies
+  DROP POLICY IF EXISTS "Users can read collaborations for their websites" ON website_collaborators;
+  DROP POLICY IF EXISTS "Website owners can manage collaborators" ON website_collaborators;
+
+ CREATE POLICY "Users can read collaborations for their websites"
   ON website_collaborators FOR SELECT
   TO authenticated
   USING (
-    user_id = auth.uid() OR 
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid()
-    ) OR
-    is_admin()
-  );
-
-CREATE POLICY "Website owners can manage collaborators"
-  ON website_collaborators FOR ALL
-  TO authenticated
-  USING (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid() 
-      AND (permissions->>'invite')::boolean = true
-    ) OR
-    is_admin()
-  );
-
--- Website versions policies
-CREATE POLICY "Collaborators can read website versions"
-  ON website_versions FOR SELECT
-  TO authenticated
-  USING (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid()
-    ) OR
-    is_admin()
-  );
-
-CREATE POLICY "Collaborators can create website versions"
-  ON website_versions FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid() 
-      AND (permissions->>'edit')::boolean = true
+    -- Direct access if user is the collaborator
+    user_id = auth.uid() 
+    OR
+    -- Or if user is a collaborator on the website (using direct check)
+    EXISTS (
+      SELECT 1 FROM website_collaborators wc
+      WHERE wc.website_id = website_collaborators.website_id
+      AND wc.user_id = auth.uid()
     )
-  );
-
--- Website analytics policies
-CREATE POLICY "Collaborators can read website analytics"
-  ON website_analytics FOR SELECT
-  TO authenticated
-  USING (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid()
-    ) OR
+    OR
+    -- Or if user is admin
     is_admin()
   );
 
-CREATE POLICY "System can insert analytics"
-  ON website_analytics FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+  CREATE POLICY "Website owners can manage collaborators"
+    ON website_collaborators FOR ALL
+    TO authenticated
+    USING (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid() 
+        AND (permissions->>'invite')::boolean = true
+      ) OR
+      is_admin()
+    );
 
-CREATE POLICY "System can update analytics"
-  ON website_analytics FOR UPDATE
-  TO authenticated
-  USING (true);
+  -- Website versions policies
+  DROP POLICY IF EXISTS "Collaborators can read website versions" ON website_versions;
+  DROP POLICY IF EXISTS "Collaborators can create website versions" ON website_versions;
 
--- Website deployments policies
-CREATE POLICY "Collaborators can read website deployments"
-  ON website_deployments FOR SELECT
-  TO authenticated
-  USING (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid()
-    ) OR
-    is_admin()
-  );
+  CREATE POLICY "Collaborators can read website versions"
+    ON website_versions FOR SELECT
+    TO authenticated
+    USING (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid()
+      ) OR
+      is_admin()
+    );
 
-CREATE POLICY "Publishers can create deployments"
-  ON website_deployments FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid() 
-      AND (permissions->>'publish')::boolean = true
-    )
-  );
+  CREATE POLICY "Collaborators can create website versions"
+    ON website_versions FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid() 
+        AND (permissions->>'edit')::boolean = true
+      )
+    );
 
--- User sessions policies
-CREATE POLICY "Users can manage own sessions"
-  ON user_sessions FOR ALL
-  TO authenticated
-  USING (user_id = auth.uid());
+  -- Website analytics policies
+  DROP POLICY IF EXISTS "Collaborators can read website analytics" ON website_analytics;
+  DROP POLICY IF EXISTS "System can insert analytics" ON website_analytics;
+  DROP POLICY IF EXISTS "System can update analytics" ON website_analytics;
 
--- Website comments policies
-CREATE POLICY "Collaborators can read website comments"
-  ON website_comments FOR SELECT
-  TO authenticated
-  USING (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid()
-    ) OR
-    is_admin()
-  );
+  CREATE POLICY "Collaborators can read website analytics"
+    ON website_analytics FOR SELECT
+    TO authenticated
+    USING (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid()
+      ) OR
+      is_admin()
+    );
 
-CREATE POLICY "Collaborators can create comments"
-  ON website_comments FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    website_id IN (
-      SELECT website_id FROM website_collaborators 
-      WHERE user_id = auth.uid()
-    ) AND
-    user_id = auth.uid()
-  );
+  CREATE POLICY "System can insert analytics"
+    ON website_analytics FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
 
-CREATE POLICY "Users can update own comments"
-  ON website_comments FOR UPDATE
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  CREATE POLICY "System can update analytics"
+    ON website_analytics FOR UPDATE
+    TO authenticated
+    USING (true);
 
--- API keys policies
-CREATE POLICY "Users can manage own API keys"
-  ON api_keys FOR ALL
-  TO authenticated
-  USING (user_id = auth.uid());
+  -- Website deployments policies
+  DROP POLICY IF EXISTS "Collaborators can read website deployments" ON website_deployments;
+  DROP POLICY IF EXISTS "Publishers can create deployments" ON website_deployments;
+
+  CREATE POLICY "Collaborators can read website deployments"
+    ON website_deployments FOR SELECT
+    TO authenticated
+    USING (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid()
+      ) OR
+      is_admin()
+    );
+
+  CREATE POLICY "Publishers can create deployments"
+    ON website_deployments FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid() 
+        AND (permissions->>'publish')::boolean = true
+      )
+    );
+
+  -- User sessions policies
+  DROP POLICY IF EXISTS "Users can manage own sessions" ON user_sessions;
+
+  CREATE POLICY "Users can manage own sessions"
+    ON user_sessions FOR ALL
+    TO authenticated
+    USING (user_id = auth.uid());
+
+  -- Website comments policies
+  DROP POLICY IF EXISTS "Collaborators can read website comments" ON website_comments;
+  DROP POLICY IF EXISTS "Collaborators can create comments" ON website_comments;
+  DROP POLICY IF EXISTS "Users can update own comments" ON website_comments;
+
+  CREATE POLICY "Collaborators can read website comments"
+    ON website_comments FOR SELECT
+    TO authenticated
+    USING (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid()
+      ) OR
+      is_admin()
+    );
+
+  CREATE POLICY "Collaborators can create comments"
+    ON website_comments FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      website_id IN (
+        SELECT website_id FROM website_collaborators 
+        WHERE user_id = auth.uid()
+      ) AND
+      user_id = auth.uid()
+    );
+
+  CREATE POLICY "Users can update own comments"
+    ON website_comments FOR UPDATE
+    TO authenticated
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+  -- API keys policies
+  DROP POLICY IF EXISTS "Users can manage own API keys" ON api_keys;
+
+  CREATE POLICY "Users can manage own API keys"
+    ON api_keys FOR ALL
+    TO authenticated
+    USING (user_id = auth.uid());
+END $$;
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION is_admin(uuid) TO authenticated;
@@ -760,7 +790,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add triggers to new tables
+-- Add triggers to new tables with existence checks
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_name = 'update_website_collaborators_updated_at') THEN
