@@ -1,12 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   useLocation,
   useNavigate,
   createBrowserRouter,
-  RouterProvider
+  RouterProvider,
 } from 'react-router-dom';
 import { useAppStore } from './store/useAppStore';
 import { useAuth } from './hooks/useAuth';
+import { supabase } from './lib/supabase';
+
 import Header from './components/Layout/Header';
 import LandingPage from './components/Landing/LandingPage';
 import AuthPage from './components/Auth/AuthPage';
@@ -18,40 +20,52 @@ import EditorPage from './components/Editor/EditorPage';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import MadeWithBolt from './components/MadeWithBolt';
 
-// Create a router using react-router-dom's createBrowserRouter
+// React Router setup
 const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
-    // You can add children routes here if needed
-  }
+  },
 ]);
 
-function AppWrapper() {
-  return (
-    <RouterProvider router={router} />
-  );
+export default function AppWrapper() {
+  return <RouterProvider router={router} />;
 }
 
 function App() {
-  // State hooks at the top (React hook rules)
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-  const [isPasswordReset, setIsPasswordReset] = React.useState(false);
-  
-  // Router hooks
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
-  
-  // Store hooks
+
   const { currentView, isAuthenticated, setCurrentView } = useAppStore();
   const { loading, isAuthenticated: authIsAuthenticated } = useAuth();
 
-  // Check for password reset in URL
+  // ✅ Handle Supabase OAuth redirect (e.g., Google login)
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+        if (error) {
+          console.error('❌ OAuth exchange error:', error.message);
+        } else {
+          console.log('✅ OAuth session established:', data);
+          // Clean up the URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      });
+    }
+  }, []);
+
+  // ✅ Handle password reset links
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const type = urlParams.get('type');
     const path = location.pathname;
-    
+
     if (type === 'recovery' || path === '/auth/reset-password') {
       setIsPasswordReset(true);
       if (type === 'recovery') {
@@ -62,27 +76,25 @@ function App() {
     }
   }, [location]);
 
-  // Handle route protection and redirection
+  // ✅ Redirect based on auth and view
   useEffect(() => {
     if (loading) return;
 
     const protectedRoutes = ['profile', 'dashboard', 'templates', 'editor', 'admin'];
     const publicRoutes = ['landing', 'auth'];
-    
-    // Redirect unauthenticated users trying to access protected routes
+
     if (!authIsAuthenticated && protectedRoutes.includes(currentView)) {
       setCurrentView('landing');
       navigate('/', { replace: true });
     }
 
-    // Redirect authenticated users trying to access public routes
     if (authIsAuthenticated && publicRoutes.includes(currentView)) {
       setCurrentView('dashboard');
       navigate('/dashboard', { replace: true });
     }
   }, [loading, authIsAuthenticated, currentView, setCurrentView, navigate]);
 
-  // Debug current state (debounced)
+  // Optional: Debug current state
   useEffect(() => {
     const timer = setTimeout(() => {
       console.log('📱 App state:', {
@@ -92,11 +104,9 @@ function App() {
         isPasswordReset,
       });
     }, 100);
-
     return () => clearTimeout(timer);
   }, [currentView, isAuthenticated, loading, isPasswordReset]);
 
-  // Show loading spinner while auth is initializing
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -109,12 +119,8 @@ function App() {
   }
 
   const renderCurrentView = () => {
-    // Handle password reset page first (highest priority)
-    if (isPasswordReset) {
-      return <ResetPasswordPage />;
-    }
+    if (isPasswordReset) return <ResetPasswordPage />;
 
-    // Render based on current view
     switch (currentView) {
       case 'landing':
         return <LandingPage />;
@@ -131,7 +137,7 @@ function App() {
       case 'admin':
         return <AdminDashboard />;
       default:
-        console.warn('⚠️ Unknown view:', currentView, 'defaulting to landing');
+        console.warn('⚠️ Unknown view:', currentView, '→ fallback to Landing');
         return <LandingPage />;
     }
   };
@@ -143,12 +149,8 @@ function App() {
       {shouldShowHeader && (
         <Header isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
       )}
-      <main className="pb-16">
-        {renderCurrentView()}
-      </main>
+      <main className="pb-16">{renderCurrentView()}</main>
       <MadeWithBolt />
     </div>
   );
 }
-
-export default AppWrapper;
